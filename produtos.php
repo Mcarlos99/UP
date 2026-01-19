@@ -435,17 +435,27 @@ if (isset($_SESSION['error'])) {
                     </div>
                 <?php endif; ?>
                 
-                <div class="h-full flex flex-col p-3">
+                <div class="h-full flex flex-col p-2">
                     
                     <!-- Imagem -->
                     <div class="produto-imagem relative bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center mb-2 overflow-hidden" style="height: 45%;">
-                        <?php if (!empty($produto['imagem']) && file_exists(UPLOAD_DIR . $produto['imagem'])): ?>
-                            <img src="uploads/<?php echo htmlspecialchars($produto['imagem']); ?>" alt="<?php echo htmlspecialchars($produto['nome']); ?>" class="max-w-full max-h-full object-contain p-2">
+
+                        <?php if (!empty($produto['imagem']) && file_exists($produto['imagem'])): ?>
+
+                            <img src="<?php echo htmlspecialchars($produto['imagem']); ?>" 
+                                 alt="<?php echo htmlspecialchars($produto['nome']); ?>" 
+                                 class="max-w-full max-h-full object-contain p-2">
+
                         <?php else: ?>
-                            <div class="text-3xl md:text-4xl text-purple-400">
+
+                            <div class="text-1xl md:text-1xl text-purple-400">
+
                                 <i class="fas fa-box"></i>
+
                             </div>
+
                         <?php endif; ?>
+                            
                         
                         <!-- Overlay hover -->
                         <div class="absolute inset-0 bg-black bg-opacity-60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-1">

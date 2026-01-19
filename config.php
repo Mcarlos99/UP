@@ -22,7 +22,7 @@ define('SESSION_LIFETIME', 7200); // 2 horas em segundos
 define('PASSWORD_SALT', 'SEU_SALT_AQUI_MUDE_ISSO'); // Mude isso para um valor único
 
 // Configurações de Upload
-define('UPLOAD_DIR', __DIR__ . '/uploads/');
+define('UPLOAD_DIR', __DIR__ . '/uploads/produtos/');
 define('MAX_FILE_SIZE', 5242880); // 5MB em bytes
 define('ALLOWED_EXTENSIONS', ['jpg', 'jpeg', 'png', 'gif', 'pdf']);
 

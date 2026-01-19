@@ -17,6 +17,19 @@ if (!defined('INCLUDED')) {
 }
 
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
+
+// Buscar pedidos pendentes do catálogo para badge
+$pedidosPendentesCatalogo = 0;
+try {
+    $db = getDB();
+    $empresaId = getEmpresaId();
+    $stmt = $db->prepare("SELECT COUNT(*) as total FROM pedidos_catalogo WHERE empresa_id = ? AND status = 'pendente'");
+    $stmt->execute([$empresaId]);
+    $result = $stmt->fetch();
+    $pedidosPendentesCatalogo = $result['total'] ?? 0;
+} catch (Exception $e) {
+    // Silenciar erro se tabela não existir ainda
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -60,6 +73,32 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
         }
         .card.bg-gradient-to-br:hover {
             box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.4);
+        }
+        
+        /* Badge de notificação */
+        .badge-notification {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.25rem;
+            height: 1.25rem;
+            padding: 0 0.375rem;
+            background: #ef4444;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+            border-radius: 9999px;
+            margin-left: auto;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
         }
         
         /* RESPONSIVO MOBILE - CORREÇÃO DA SIDEBAR */
@@ -143,6 +182,24 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
                     <span>Clientes</span>
                 </a>
                 
+                <!-- NOVO: Catálogo Online -->
+                <a href="catalogo-online.php" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg <?php echo $currentPage === 'catalogo-online' || $currentPage === 'pedidos-catalogo' ? 'active' : ''; ?>">
+                    <i class="fas fa-store w-5"></i>
+                   <span>Catálogo Online</span>
+                   
+                    <?php if ($pedidosPendentesCatalogo > 0): ?>
+                        <span class="badge-notification"><?php echo $pedidosPendentesCatalogo; ?></span>
+                   
+                    <?php endif; ?>
+                </a>
+                
+                
+                <a href="configuracoes-catalogo.php" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg <?php echo $currentPage === 'configuracoes-catalogo' ? 'active' : ''; ?>">
+                    <i class="fas fa-palette"></i>
+                    <span>Personalizar Catálogo</span>
+                </a>
+                
+
                 <a href="financeiro.php" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg <?php echo $currentPage === 'financeiro' ? 'active' : ''; ?>">
                     <i class="fas fa-dollar-sign w-5"></i>
                     <span>Financeiro</span>
@@ -158,24 +215,15 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
                     <i class="fas fa-cog w-5"></i>
                     <span>Configurações</span>
                 </a>
+                
+                <a href="logout.php" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" title="Sair">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Sair</span>
+                </a>
                 <?php endif; ?>
             </nav>
         </div>
 
-        <!-- User Info -->
-        <div class="absolute bottom-0 left-0 right-0 p-6 border-t border-white/20">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                    <span class="text-lg font-bold"><?php echo strtoupper(substr($user['nome'], 0, 1)); ?></span>
-                </div>
-                <div class="flex-1">
-                    <p class="font-semibold text-sm"><?php echo htmlspecialchars($user['nome']); ?></p>
-                    <p class="text-xs text-purple-200"><?php echo $user['nivel_acesso'] === 'admin' ? 'Administrador' : 'Usuário'; ?></p>
-                </div>
-                <a href="logout.php" class="hover:bg-white/10 p-2 rounded-lg transition" title="Sair">
-                    <i class="fas fa-sign-out-alt"></i>
-                </a>
-            </div>
         </div>
     </aside>
 
@@ -199,7 +247,9 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
                     <!-- Notificações -->
                     <button class="relative hover:bg-gray-100 p-2 rounded-lg transition">
                         <i class="fas fa-bell text-gray-600 text-lg md:text-xl"></i>
-                        <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                        <?php if ($pedidosPendentesCatalogo > 0): ?>
+                            <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                        <?php endif; ?>
                     </button>
                     
                     <!-- Data/Hora -->
