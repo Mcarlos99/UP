@@ -15,9 +15,9 @@ if (!isLoggedIn()) {
 
 define('INCLUDED', true);
 $pageTitle = 'Produtos';
-$pageSubtitle = 'Gerencie seu catalogo de produtos';
+$pageSubtitle = 'Gerencie seu catálogo de produtos';
 
-// Processar aÃ§Ãµes
+// Processar ações
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $db = getDB();
     
@@ -40,7 +40,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Alternar destaque
     if (isset($_POST['action']) && $_POST['action'] === 'toggle_destaque' && isset($_POST['produto_id'])) {
         try {
-            // MULTI-TENANT: Validar acesso
             validarAcessoEmpresa('produtos', $_POST['produto_id']);
             
             $stmt = $db->prepare("UPDATE produtos SET destaque = NOT destaque WHERE id = ? AND empresa_id = ?");
@@ -83,7 +82,7 @@ if (!empty($busca)) {
     $params[] = "%$busca%";
 }
 
-// OrdenaÃ§Ã£o
+// Ordenação
 $orderBy = "p.nome ASC";
 switch ($ordenacao) {
     case 'nome_desc':
@@ -106,7 +105,7 @@ switch ($ordenacao) {
         break;
 }
 
-// PaginaÃ§Ã£o
+// Paginação
 $itensPorPagina = 12;
 $paginaAtual = isset($_GET['pagina']) ? (int)$_GET['pagina'] : 1;
 $offset = ($paginaAtual - 1) * $itensPorPagina;
@@ -136,12 +135,12 @@ try {
     $stmt->execute($params);
     $produtos = $stmt->fetchAll();
     
-    // MULTI-TENANT: Buscar categorias DA EMPRESA para filtro
+    // Buscar categorias para filtro
     $stmt = $db->prepare("SELECT * FROM categorias WHERE ativo = 1 AND empresa_id = ? ORDER BY ordem, nome");
     $stmt->execute([$empresaId]);
     $categorias = $stmt->fetchAll();
     
-    // MULTI-TENANT: Estatísticas DA EMPRESA (CORRIGIDO!)
+    // Estatísticas
     $stmt = $db->prepare("SELECT COUNT(*) as total FROM produtos WHERE ativo = 1 AND empresa_id = ?");
     $stmt->execute([$empresaId]);
     $totalAtivos = $stmt->fetch()['total'];
@@ -162,96 +161,197 @@ try {
     $erro = "Erro ao carregar produtos: " . $e->getMessage();
 }
 
-// Calcular paginaÃ§Ã£o
+// Calcular paginação
 $totalPaginas = ceil($totalProdutos / $itensPorPagina);
 
 require_once 'header.php';
 
 // Mostrar mensagens
 if (isset($_SESSION['success'])) {
-    echo '<div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded alert-auto-close">';
-    echo '<p class="font-medium"><i class="fas fa-check-circle"></i> ' . htmlspecialchars($_SESSION['success']) . '</p>';
+    echo '<div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-3 md:p-4 mb-4 md:mb-6 rounded alert-auto-close">';
+    echo '<p class="font-medium text-sm md:text-base"><i class="fas fa-check-circle"></i> ' . htmlspecialchars($_SESSION['success']) . '</p>';
     echo '</div>';
     unset($_SESSION['success']);
 }
 
 if (isset($_SESSION['error'])) {
-    echo '<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded alert-auto-close">';
-    echo '<p class="font-medium"><i class="fas fa-exclamation-circle"></i> ' . htmlspecialchars($_SESSION['error']) . '</p>';
+    echo '<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 md:p-4 mb-4 md:mb-6 rounded alert-auto-close">';
+    echo '<p class="font-medium text-sm md:text-base"><i class="fas fa-exclamation-circle"></i> ' . htmlspecialchars($_SESSION['error']) . '</p>';
     echo '</div>';
 }
 ?>
 
-<!-- CabeÃ§alho -->
-<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-    <div>
-        <h2 class="text-3xl font-bold text-gray-900">Produtos</h2>
-        <p class="text-gray-600 mt-1">Gerencie seu catÃ¡logo de produtos</p>
-    </div>
-    <div class="flex gap-3">
-        <a href="categorias.php" class="bg-gray-600 text-white px-4 py-3 rounded-lg hover:bg-gray-700 transition font-semibold">
-            <i class="fas fa-tags"></i> Categorias
+<style>
+/* Responsivo Mobile - Produtos */
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.75rem !important;
+    }
+    
+    .stat-card {
+        padding: 1rem !important;
+    }
+    
+    .stat-card .icon-box {
+        width: 40px !important;
+        height: 40px !important;
+        padding: 0.5rem !important;
+    }
+    
+    .stat-card .icon-box i {
+        font-size: 1.25rem !important;
+    }
+    
+    .stat-card .stat-title {
+        font-size: 0.7rem !important;
+        margin-bottom: 0.25rem !important;
+    }
+    
+    .stat-card .stat-value {
+        font-size: 1.5rem !important;
+        margin-bottom: 0.25rem !important;
+    }
+    
+    .stat-card .stat-subtitle {
+        font-size: 0.65rem !important;
+    }
+    
+    /* Filtros em coluna no mobile */
+    .filters-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    /* Grid de produtos 2 colunas no mobile */
+    .produtos-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.75rem !important;
+    }
+    
+    /* Cards de produtos mais compactos */
+    .produto-card {
+        padding: 0.75rem !important;
+    }
+    
+    .produto-card .produto-imagem {
+        height: 100px !important;
+    }
+    
+    .produto-card .categoria-badge {
+        font-size: 0.65rem !important;
+        padding: 0.125rem 0.5rem !important;
+    }
+    
+    .produto-card .produto-nome {
+        font-size: 0.75rem !important;
+        line-height: 1rem !important;
+        height: 2rem !important;
+    }
+    
+    .produto-card .produto-preco {
+        font-size: 0.875rem !important;
+    }
+    
+    .produto-card .produto-estoque {
+        font-size: 1rem !important;
+    }
+    
+    .produto-card .produto-status {
+        font-size: 0.65rem !important;
+        padding: 0.25rem 0.5rem !important;
+    }
+    
+    .produto-card .produto-actions {
+        gap: 0.25rem !important;
+    }
+    
+    .produto-card .produto-actions a,
+    .produto-card .produto-actions button {
+        padding: 0.5rem !important;
+        font-size: 0.75rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .stat-card .stat-value {
+        font-size: 1.25rem !important;
+    }
+}
+</style>
+
+<!-- Cabeçalho -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4 mb-4 md:mb-6">
+
+    <div class="flex gap-2 md:gap-3 w-full md:w-auto">
+        
+        <a href="categorias.php" class="flex-1 md:flex-none btn btn-primary text-center text-sm md:text-base"">
+            
+            <i class="fas fa-tags"></i> <span class="hidden sm:inline">Categorias</span> Categorias
         </a>
-        <a href="produto-form.php" class="btn btn-primary">
-            <i class="fas fa-plus"></i> Novo Produto
+        
+        
+        <a href="produto-form.php" class="flex-1 md:flex-none btn btn-primary text-center text-sm md:text-base">
+            
+            <i class="fas fa-plus"></i> <span class="hidden sm:inline"
+                 >Novo</span> Produto
         </a>
     </div>
 </div>
 
 <!-- Cards de Estatísticas -->
-<div class="grid grid-cols-4 gap-4 mb-6" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+<div class="stats-grid grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 md:mb-6">
     <!-- Total de Produtos -->
-    <div class="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition" style="aspect-ratio: 1/1;">
-        <div class="h-full flex flex-col items-center justify-center text-center">
-            <div class="bg-white/20 p-3 rounded-full mb-3">
-                <i class="fas fa-box text-4xl"></i>
+    <div class="stat-card bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition">
+        <div class="flex flex-col items-center justify-center text-center h-full">
+            <div class="icon-box bg-white/20 p-3 rounded-full mb-3">
+                <i class="fas fa-box text-3xl md:text-4xl"></i>
             </div>
-            <p class="text-yellow-100 text-base font-bold mb-3">Total de Produtos</p>
-            <p class="text-4xl font-bold mb-2"><?php echo $totalAtivos; ?></p>
-            <p class="text-yellow-100 text-base font-semibold">Cadastrados</p>
+            <p class="stat-title text-yellow-100 text-sm md:text-base font-bold mb-2">Total de Produtos</p>
+            <p class="stat-value text-2xl md:text-4xl font-bold mb-2"><?php echo $totalAtivos; ?></p>
+            <p class="stat-subtitle text-yellow-100 text-xs md:text-base font-semibold">Cadastrados</p>
         </div>
     </div>
     
     <!-- Estoque Baixo -->
-    <div class="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition" style="aspect-ratio: 1/1;">
-        <div class="h-full flex flex-col items-center justify-center text-center">
-            <div class="bg-white/20 p-3 rounded-full mb-3">
-                <i class="fas fa-exclamation-triangle text-4xl"></i>
+    <div class="stat-card bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition">
+        <div class="flex flex-col items-center justify-center text-center h-full">
+            <div class="icon-box bg-white/20 p-3 rounded-full mb-3">
+                <i class="fas fa-exclamation-triangle text-3xl md:text-4xl"></i>
             </div>
-            <p class="text-blue-100 text-base font-bold mb-3">Estoque Baixo</p>
-            <p class="text-4xl font-bold mb-2"><?php echo $estoqueBaixo; ?></p>
-            <p class="text-blue-100 text-base font-semibold">Atenção</p>
+            <p class="stat-title text-blue-100 text-sm md:text-base font-bold mb-2">Estoque Baixo</p>
+            <p class="stat-value text-2xl md:text-4xl font-bold mb-2"><?php echo $estoqueBaixo; ?></p>
+            <p class="stat-subtitle text-blue-100 text-xs md:text-base font-semibold">Atenção</p>
         </div>
     </div>
     
     <!-- Estoque Zerado -->
-    <div class="bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition" style="aspect-ratio: 1/1;">
-        <div class="h-full flex flex-col items-center justify-center text-center">
-            <div class="bg-white/20 p-3 rounded-full mb-3">
-                <i class="fas fa-times-circle text-4xl"></i>
+    <div class="stat-card bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition">
+        <div class="flex flex-col items-center justify-center text-center h-full">
+            <div class="icon-box bg-white/20 p-3 rounded-full mb-3">
+                <i class="fas fa-times-circle text-3xl md:text-4xl"></i>
             </div>
-            <p class="text-green-100 text-base font-bold mb-3">Estoque Zerado</p>
-            <p class="text-4xl font-bold mb-2"><?php echo $estoqueZerado; ?></p>
-            <p class="text-green-100 text-base font-semibold">Sem Estoque</p>
+            <p class="stat-title text-green-100 text-sm md:text-base font-bold mb-2">Estoque Zerado</p>
+            <p class="stat-value text-2xl md:text-4xl font-bold mb-2"><?php echo $estoqueZerado; ?></p>
+            <p class="stat-subtitle text-green-100 text-xs md:text-base font-semibold">Sem Estoque</p>
         </div>
     </div>
     
     <!-- Em Destaque -->
-    <div class="bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition" style="aspect-ratio: 1/1;">
-        <div class="h-full flex flex-col items-center justify-center text-center">
-            <div class="bg-white/20 p-3 rounded-full mb-3">
-                <i class="fas fa-star text-4xl"></i>
+    <div class="stat-card bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition">
+        <div class="flex flex-col items-center justify-center text-center h-full">
+            <div class="icon-box bg-white/20 p-3 rounded-full mb-3">
+                <i class="fas fa-star text-3xl md:text-4xl"></i>
             </div>
-            <p class="text-purple-100 text-base font-bold mb-3">Em Destaque</p>
-            <p class="text-4xl font-bold mb-2"><?php echo $totalDestaques; ?></p>
-            <p class="text-purple-100 text-base font-semibold">Favoritos</p>
+            <p class="stat-title text-purple-100 text-sm md:text-base font-bold mb-2">Em Destaque</p>
+            <p class="stat-value text-2xl md:text-4xl font-bold mb-2"><?php echo $totalDestaques; ?></p>
+            <p class="stat-subtitle text-purple-100 text-xs md:text-base font-semibold">Favoritos</p>
         </div>
     </div>
 </div>
 
 <!-- Filtros -->
-<div class="white-card mb-6">
-    <form method="GET" action="" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+<div class="white-card mb-4 md:mb-6 p-3 md:p-4">
+    <form method="GET" action="" class="filters-grid grid grid-cols-1 md:grid-cols-5 gap-3 md:gap-4">
         <!-- Busca -->
         <div class="md:col-span-2">
             <input 
@@ -259,13 +359,13 @@ if (isset($_SESSION['error'])) {
                 name="busca" 
                 placeholder="Buscar produtos..." 
                 value="<?php echo htmlspecialchars($busca); ?>"
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                class="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm md:text-base"
             >
         </div>
         
         <!-- Categoria -->
         <div>
-            <select name="categoria" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+            <select name="categoria" class="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm md:text-base">
                 <option value="todas">Todas Categorias</option>
                 <?php foreach ($categorias as $cat): ?>
                     <option value="<?php echo $cat['id']; ?>" <?php echo $filtroCategoria == $cat['id'] ? 'selected' : ''; ?>>
@@ -277,72 +377,71 @@ if (isset($_SESSION['error'])) {
         
         <!-- Estoque -->
         <div>
-            <select name="estoque" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+            <select name="estoque" class="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm md:text-base">
                 <option value="todos" <?php echo $filtroEstoque === 'todos' ? 'selected' : ''; ?>>Todos Estoques</option>
                 <option value="baixo" <?php echo $filtroEstoque === 'baixo' ? 'selected' : ''; ?>>Estoque Baixo</option>
                 <option value="zerado" <?php echo $filtroEstoque === 'zerado' ? 'selected' : ''; ?>>Zerado</option>
             </select>
         </div>
         
-        <!-- BotÃ£o -->
+        <!-- Botão -->
         <div>
-            <button type="submit" class="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition">
+            <button type="submit" class="w-full bg-purple-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-purple-700 transition text-sm md:text-base">
                 <i class="fas fa-filter"></i> Filtrar
             </button>
         </div>
     </form>
     
-    <!-- OrdenaÃ§Ã£o -->
-    <div class="mt-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-600">Ordenar por:</span>
-            <select name="ordem" onchange="window.location.href='?<?php echo http_build_query(array_merge($_GET, ['ordem' => ''])); ?>&ordem=' + this.value" class="px-3 py-1 border border-gray-300 rounded-lg text-sm">
+    <!-- Ordenação -->
+    <div class="mt-3 md:mt-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-2 md:gap-3">
+        <div class="flex items-center gap-2 w-full md:w-auto">
+            <span class="text-xs md:text-sm text-gray-600">Ordenar:</span>
+            <select name="ordem" onchange="window.location.href='?<?php echo http_build_query(array_merge($_GET, ['ordem' => ''])); ?>&ordem=' + this.value" class="flex-1 md:flex-none px-2 md:px-3 py-1 border border-gray-300 rounded-lg text-xs md:text-sm">
                 <option value="nome_asc" <?php echo $ordenacao === 'nome_asc' ? 'selected' : ''; ?>>Nome A-Z</option>
                 <option value="nome_desc" <?php echo $ordenacao === 'nome_desc' ? 'selected' : ''; ?>>Nome Z-A</option>
-                <option value="preco_asc" <?php echo $ordenacao === 'preco_asc' ? 'selected' : ''; ?>>Menor PreÃ§o</option>
-                <option value="preco_desc" <?php echo $ordenacao === 'preco_desc' ? 'selected' : ''; ?>>Maior PreÃ§o</option>
+                <option value="preco_asc" <?php echo $ordenacao === 'preco_asc' ? 'selected' : ''; ?>>Menor Preço</option>
+                <option value="preco_desc" <?php echo $ordenacao === 'preco_desc' ? 'selected' : ''; ?>>Maior Preço</option>
                 <option value="estoque_asc" <?php echo $ordenacao === 'estoque_asc' ? 'selected' : ''; ?>>Menor Estoque</option>
                 <option value="estoque_desc" <?php echo $ordenacao === 'estoque_desc' ? 'selected' : ''; ?>>Maior Estoque</option>
                 <option value="recentes" <?php echo $ordenacao === 'recentes' ? 'selected' : ''; ?>>Mais Recentes</option>
             </select>
         </div>
         
-        <span class="text-sm text-gray-600">
+        <span class="text-xs md:text-sm text-gray-600">
             <?php echo $totalProdutos; ?> produto(s) encontrado(s)
         </span>
     </div>
 </div>
 
-<!-- Grid de Produtos - FORMATO 4x1 HORIZONTAL (igual cards de estatísticas) -->
+<!-- Grid de Produtos -->
 <?php if (empty($produtos)): ?>
-    <div class="white-card text-center py-12">
-        <i class="fas fa-box-open text-6xl text-gray-300 mb-4"></i>
-        <p class="text-gray-600 text-lg">Nenhum produto encontrado</p>
-        <p class="text-gray-500 text-sm mt-2">Crie seu primeiro produto clicando no botão "Novo Produto"</p>
+    <div class="white-card text-center py-8 md:py-12">
+        <i class="fas fa-box-open text-5xl md:text-6xl text-gray-300 mb-4"></i>
+        <p class="text-gray-600 text-base md:text-lg">Nenhum produto encontrado</p>
+        <p class="text-gray-500 text-xs md:text-sm mt-2">Crie seu primeiro produto clicando no botão "Novo Produto"</p>
     </div>
 <?php else: ?>
-    <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-3 gap-6">
+    <div class="produtos-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6">
         <?php foreach ($produtos as $produto): ?>
-            <div class="white-card overflow-hidden group relative">
+            <div class="produto-card white-card overflow-hidden group relative">
                 
-                
-                    <!-- Badge Destaque -->
-                    <?php if ($produto['destaque']): ?>
-                     <div class="absolute top-2 right-2 z-10">
+                <!-- Badge Destaque -->
+                <?php if ($produto['destaque']): ?>
+                    <div class="absolute top-2 right-2 z-10">
                         <span class="bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full text-xs font-bold">
                             <i class="fas fa-star"></i>
                         </span>
-                     </div>
-                     <?php endif; ?>
+                    </div>
+                <?php endif; ?>
                 
                 <div class="h-full flex flex-col p-3">
                     
-                    <!-- Imagem (45% topo) -->
-                    <div class="relative bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center mb-2 overflow-hidden" style="height: 45%;">
+                    <!-- Imagem -->
+                    <div class="produto-imagem relative bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center mb-2 overflow-hidden" style="height: 45%;">
                         <?php if (!empty($produto['imagem']) && file_exists(UPLOAD_DIR . $produto['imagem'])): ?>
                             <img src="uploads/<?php echo htmlspecialchars($produto['imagem']); ?>" alt="<?php echo htmlspecialchars($produto['nome']); ?>" class="max-w-full max-h-full object-contain p-2">
                         <?php else: ?>
-                            <div class="text-4xl text-purple-400">
+                            <div class="text-3xl md:text-4xl text-purple-400">
                                 <i class="fas fa-box"></i>
                             </div>
                         <?php endif; ?>
@@ -362,29 +461,29 @@ if (isset($_SESSION['error'])) {
                         </div>
                     </div>
                     
-                    <!-- Informações (70% restante) -->
+                    <!-- Informações -->
                     <div class="flex-1 flex flex-col justify-between">
                         
                         <!-- Categoria -->
-                        <span class="inline-block text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold mb-1 self-start">
+                        <span class="categoria-badge inline-block text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold mb-1 self-start">
                             <?php echo $produto['categoria_icone'] ?? '📦'; ?> <?php echo htmlspecialchars($produto['categoria_nome']); ?>
                         </span>
                         
                         <!-- Nome -->
-                        <h3 class="text-xs font-bold text-gray-900 mb-1" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 2em; line-height: 1em;">
+                        <h3 class="produto-nome text-xs font-bold text-gray-900 mb-1" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 2em; line-height: 1em;">
                             <?php echo htmlspecialchars($produto['nome']); ?>
                         </h3>
                         
                         <!-- Preço -->
                         <div class="mb-1">
                             <p class="text-xs text-gray-600">Preço</p>
-                            <p class="text-sm font-bold text-purple-600"><?php echo formatarMoeda($produto['preco_venda']); ?></p>
+                            <p class="produto-preco text-sm font-bold text-purple-600"><?php echo formatarMoeda($produto['preco_venda']); ?></p>
                         </div>
                         
                         <!-- Estoque -->
                         <div class="mb-1">
                             <p class="text-xs text-gray-600">Estoque</p>
-                            <p class="text-lg font-bold <?php 
+                            <p class="produto-estoque text-lg font-bold <?php 
                                 if ($produto['estoque_atual'] == 0) echo 'text-red-600';
                                 elseif ($produto['estoque_atual'] <= $produto['estoque_minimo']) echo 'text-yellow-600';
                                 else echo 'text-green-600';
@@ -395,21 +494,21 @@ if (isset($_SESSION['error'])) {
                         
                         <!-- Status -->
                         <?php if ($produto['estoque_atual'] == 0): ?>
-                            <div class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-semibold text-center mb-1">
+                            <div class="produto-status bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-semibold text-center mb-1">
                                 <i class="fas fa-times-circle"></i> Sem
                             </div>
                         <?php elseif ($produto['estoque_atual'] <= $produto['estoque_minimo']): ?>
-                            <div class="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-semibold text-center mb-1">
+                            <div class="produto-status bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-semibold text-center mb-1">
                                 <i class="fas fa-exclamation-triangle"></i> Baixo
                             </div>
                         <?php else: ?>
-                            <div class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-semibold text-center mb-1">
+                            <div class="produto-status bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-semibold text-center mb-1">
                                 <i class="fas fa-check-circle"></i> OK
                             </div>
                         <?php endif; ?>
                         
                         <!-- Botões -->
-                        <div class="flex gap-1">
+                        <div class="produto-actions flex gap-1">
                             <a href="produto-form.php?id=<?php echo $produto['id']; ?>" class="flex-1 bg-blue-500 text-white px-2 py-1 rounded-lg hover:bg-blue-600 transition text-center text-xs font-semibold">
                                 <i class="fas fa-edit"></i>
                             </a>
@@ -430,23 +529,23 @@ if (isset($_SESSION['error'])) {
 
 <!-- Paginação -->
 <?php if ($totalPaginas > 1): ?>
-    <div class="flex justify-center items-center gap-2 mt-8">
+    <div class="flex justify-center items-center gap-2 mt-6 md:mt-8 flex-wrap">
         <?php if ($paginaAtual > 1): ?>
-            <a href="?<?php echo http_build_query(array_merge($_GET, ['pagina' => $paginaAtual - 1])); ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                <i class="fas fa-chevron-left"></i> Anterior
+            <a href="?<?php echo http_build_query(array_merge($_GET, ['pagina' => $paginaAtual - 1])); ?>" class="px-3 md:px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-xs md:text-base">
+                <i class="fas fa-chevron-left"></i> <span class="hidden md:inline">Anterior</span>
             </a>
         <?php endif; ?>
         
         <?php for ($i = max(1, $paginaAtual - 2); $i <= min($totalPaginas, $paginaAtual + 2); $i++): ?>
             <a href="?<?php echo http_build_query(array_merge($_GET, ['pagina' => $i])); ?>" 
-               class="px-4 py-2 <?php echo $i === $paginaAtual ? 'bg-purple-600 text-white' : 'bg-white border border-gray-300 hover:bg-gray-50'; ?> rounded-lg">
+               class="px-3 md:px-4 py-2 <?php echo $i === $paginaAtual ? 'bg-purple-600 text-white' : 'bg-white border border-gray-300 hover:bg-gray-50'; ?> rounded-lg text-xs md:text-base">
                 <?php echo $i; ?>
             </a>
         <?php endfor; ?>
         
         <?php if ($paginaAtual < $totalPaginas): ?>
-            <a href="?<?php echo http_build_query(array_merge($_GET, ['pagina' => $paginaAtual + 1])); ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                PrÃ³xima <i class="fas fa-chevron-right"></i>
+            <a href="?<?php echo http_build_query(array_merge($_GET, ['pagina' => $paginaAtual + 1])); ?>" class="px-3 md:px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-xs md:text-base">
+                <span class="hidden md:inline">Próxima</span> <i class="fas fa-chevron-right"></i>
             </a>
         <?php endif; ?>
     </div>
