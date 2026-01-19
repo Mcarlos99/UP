@@ -284,9 +284,10 @@ if (isset($_SESSION['error'])) {
 
     <div class="flex gap-2 md:gap-3 w-full md:w-auto">
         
-        <a href="categorias.php" class="flex-1 md:flex-none btn btn-primary text-center text-sm md:text-base"">
+        <a href="categorias.php" class="flex-1 md:flex-none btn btn-primary
+            text-center text-sm md:text-base">
             
-            <i class="fas fa-tags"></i> <span class="hidden sm:inline">Categorias</span> Categorias
+            <i class="fas fa-tags"></i> <span class="hidden sm:inline"    ></span> Categorias
         </a>
         
         

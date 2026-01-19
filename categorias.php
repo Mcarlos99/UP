@@ -342,7 +342,7 @@ if (isset($_SESSION['error'])) {
         </button>
     </div>
 <?php else: ?>
-    <div class="categorias-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+    <div class="stats-grid grid grid-cols-3 md:grid-cols-3 gap-4 mb-6 md:mb-8">
         <?php foreach ($categorias as $categoria): ?>
             <div class="categoria-card white-card hover:shadow-xl transition">
                 <div class="categoria-header flex items-center justify-between mb-4 md:mb-6">
@@ -397,9 +397,10 @@ if (isset($_SESSION['error'])) {
 <?php endif; ?>
 
 <!-- Modal: Criar/Editar Categoria -->
-<div id="modalCategoria" style="display: none;" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full modal-content">
-        <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 md:p-6 rounded-t-2xl flex items-center justify-between sticky top-0">
+<div id="modalCategoria" style="display: none;" class="fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+    <div class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full my-8 max-h-[90vh] flex flex-col">
+        <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 md:p-6 rounded-t-2xl flex items-center justify-between flex-shrink-0">
             <h3 class="text-xl md:text-2xl font-bold" id="modalTitulo">
                 <i class="fas fa-th-large"></i> Nova Categoria
             </h3>
@@ -408,7 +409,8 @@ if (isset($_SESSION['error'])) {
             </button>
         </div>
         
-        <form method="POST" action="" id="formCategoria" class="p-4 md:p-6">
+        <form method="POST" action="" id="formCategoria" class="overflow-y-auto flex-1">
+            <div class="p-4 md:p-6">
             <input type="hidden" name="action" id="formAction" value="criar">
             <input type="hidden" name="id" id="categoriaId">
             
@@ -430,17 +432,39 @@ if (isset($_SESSION['error'])) {
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-3">Ícone da Categoria</label>
                     <input type="hidden" name="icone" id="categoriaIcone" value="📦">
-                    <div class="icon-grid grid grid-cols-8 gap-2">
+                    
+                    <!-- Grid de ícones principais -->
+                    <div id="iconGridPrincipal" class="icon-grid grid grid-cols-8 gap-2">
                         <?php 
-                        $icones = ['📦', '📝', '✏️', '📚', '🎨', '✂️', '📎', '📌', '🖊️', '🖍️', '📐', '📏', '🗂️', '📋', '📄', '🏷️', '💼', '🎁', '🔖', '📮', '✉️', '📧', '🎒', '👜'];
+                        $icones = ['📦', '📝', '✏️', '📚', '🎨', '✂️', '📎', '📌', '🖊️', '🖍️', '📐', '📏', '🗂️', '📋', '📄', '🏷️'];
                         foreach ($icones as $icone): 
                         ?>
-                            <div class="icon-option w-12 h-12 md:w-14 md:h-14 bg-gray-100 hover:bg-purple-100 rounded-lg flex items-center justify-center cursor-pointer transition text-2xl md:text-3xl border-2 border-transparent"
+                            <div class="icon-option w-10 h-10 md:w-12 md:h-12 bg-gray-100 hover:bg-purple-100 rounded-lg flex items-center justify-center cursor-pointer transition text-xl md:text-2xl border-2 border-transparent"
                                  onclick="selecionarIcone('<?php echo $icone; ?>', this)">
                                 <?php echo $icone; ?>
                             </div>
                         <?php endforeach; ?>
                     </div>
+                    
+                    <!-- Grid expandido (oculto inicialmente) -->
+                    <div id="iconGridExpandido" class="icon-grid grid grid-cols-8 gap-2 mt-2 hidden" style="display: none;">
+                        <?php 
+                        $iconesExtras = ['💼', '🎁', '🔖', '📮', '✉️', '📧', '🎒', '👜', '🖼️', '🎯', '💡', '🔧', '🔨', '⚙️', '🎪', '🎭', '🎬', '🎤', '🎧', '🎼', '🎹', '🎸', '🎺', '🎷', '📱', '💻', '⌨️', '🖱️', '🖨️', '📷', '📹', '📞', '☎️', '📟', '📠', '📡', '🔋', '🔌', '💾', '💿', '📀', '🎮', '🕹️', '🎲', '🧩', '🎰', '🏆', '🥇', '🥈', '🥉', '⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱'];
+                        foreach ($iconesExtras as $icone): 
+                        ?>
+                            <div class="icon-option w-10 h-10 md:w-12 md:h-12 bg-gray-100 hover:bg-purple-100 rounded-lg flex items-center justify-center cursor-pointer transition text-xl md:text-2xl border-2 border-transparent"
+                                 onclick="selecionarIcone('<?php echo $icone; ?>', this)">
+                                <?php echo $icone; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    
+                    <!-- Botão Ver Mais -->
+                    <button type="button" id="btnVerMaisIcones" 
+                            onclick="toggleIconesExpandidos()" 
+                            class="w-full mt-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition font-semibold text-sm">
+                        <i class="fas fa-chevron-down"></i> Ver Mais Ícones
+                    </button>
                 </div>
                 
                 <div>
@@ -497,7 +521,9 @@ if (isset($_SESSION['error'])) {
                     <i class="fas fa-save"></i> Salvar Categoria
                 </button>
             </div>
+            </div>
         </form>
+    </div>
     </div>
 </div>
 
@@ -554,8 +580,16 @@ function abrirModal() {
     
     atualizarPreview();
     
-    document.getElementById('modalCategoria').style.display = 'flex';
+    document.getElementById('modalCategoria').style.display = 'block';
     document.body.style.overflow = 'hidden';
+    
+    // Garantir que os ícones expandidos estejam ocultos ao abrir
+    const gridExpandido = document.getElementById('iconGridExpandido');
+    if (gridExpandido) {
+        gridExpandido.style.display = 'none';
+        gridExpandido.classList.add('hidden');
+    }
+    document.getElementById('btnVerMaisIcones').innerHTML = '<i class="fas fa-chevron-down"></i> Ver Mais Ícones';
 }
 
 function editarCategoria(categoria) {
@@ -587,8 +621,16 @@ function editarCategoria(categoria) {
     
     atualizarPreview();
     
-    document.getElementById('modalCategoria').style.display = 'flex';
+    document.getElementById('modalCategoria').style.display = 'block';
     document.body.style.overflow = 'hidden';
+    
+    // Garantir que os ícones expandidos estejam ocultos ao abrir
+    const gridExpandido = document.getElementById('iconGridExpandido');
+    if (gridExpandido) {
+        gridExpandido.style.display = 'none';
+        gridExpandido.classList.add('hidden');
+    }
+    document.getElementById('btnVerMaisIcones').innerHTML = '<i class="fas fa-chevron-down"></i> Ver Mais Ícones';
 }
 
 function fecharModal() {
@@ -606,6 +648,21 @@ function selecionarIcone(icone, elemento) {
     elemento.classList.add('border-purple-600');
     
     atualizarPreview();
+}
+
+function toggleIconesExpandidos() {
+    const gridExpandido = document.getElementById('iconGridExpandido');
+    const btnVerMais = document.getElementById('btnVerMaisIcones');
+    
+    if (gridExpandido.style.display === 'none' || !gridExpandido.style.display) {
+        gridExpandido.style.display = 'grid';
+        gridExpandido.classList.remove('hidden');
+        btnVerMais.innerHTML = '<i class="fas fa-chevron-up"></i> Ver Menos Ícones';
+    } else {
+        gridExpandido.style.display = 'none';
+        gridExpandido.classList.add('hidden');
+        btnVerMais.innerHTML = '<i class="fas fa-chevron-down"></i> Ver Mais Ícones';
+    }
 }
 
 function selecionarCor(cor, elemento) {
@@ -691,6 +748,20 @@ function rgbToHex(rgb) {
         return hex.length === 1 ? '0' + hex : hex;
     }).join('');
 }
+
+// Garantir que os ícones expandidos estejam ocultos ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    const gridExpandido = document.getElementById('iconGridExpandido');
+    const btnVerMais = document.getElementById('btnVerMaisIcones');
+    
+    if (gridExpandido) {
+        gridExpandido.style.display = 'none';
+        gridExpandido.classList.add('hidden');
+    }
+    if (btnVerMais) {
+        btnVerMais.innerHTML = '<i class="fas fa-chevron-down"></i> Ver Mais Ícones';
+    }
+});
 </script>
 
 <?php require_once 'footer.php'; ?>

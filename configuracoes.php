@@ -28,8 +28,14 @@ $db = getDB();
 // Processar ações
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-    // Criar nova empresa (usuário admin)
+    // Criar nova empresa (usuário admin) - SOMENTE SUPER ADMIN
     if (isset($_POST['action']) && $_POST['action'] === 'criar_empresa') {
+        if (!isSuperAdmin()) {
+            $_SESSION['error'] = 'Acesso negado! Apenas o super administrador pode criar novas empresas.';
+            header('Location: configuracoes.php');
+            exit;
+        }
+        
         try {
             $nomeEmpresa = sanitize($_POST['nome_empresa']);
             $emailEmpresa = sanitize($_POST['email_empresa']);
@@ -101,8 +107,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    // Desativar empresa
+    // Desativar empresa - SOMENTE SUPER ADMIN
     if (isset($_POST['action']) && $_POST['action'] === 'desativar_empresa') {
+        if (!isSuperAdmin()) {
+            $_SESSION['error'] = 'Acesso negado! Apenas o super administrador pode desativar empresas.';
+            header('Location: configuracoes.php');
+            exit;
+        }
+        
         try {
             $empresaIdDesativar = (int)$_POST['empresa_id'];
             
@@ -135,28 +147,43 @@ try {
     $erro = "Erro ao carregar configurações";
 }
 
-// Buscar empresas (apenas admins)
+// Buscar empresas (apenas para SUPER ADMIN)
 $empresas = [];
-try {
-    $stmt = $db->query("SELECT * FROM usuarios WHERE nivel_acesso = 'admin' ORDER BY ativo DESC, nome ASC");
-    $empresas = $stmt->fetchAll();
-} catch (PDOException $e) {
-    $erro = "Erro ao carregar empresas";
+if (isSuperAdmin()) {
+    try {
+        $stmt = $db->query("SELECT * FROM usuarios WHERE nivel_acesso = 'admin' ORDER BY ativo DESC, nome ASC");
+        $empresas = $stmt->fetchAll();
+    } catch (PDOException $e) {
+        $erro = "Erro ao carregar empresas";
+    }
 }
 
 // Estatísticas
 try {
-    $stmt = $db->query("SELECT COUNT(*) as total FROM usuarios WHERE ativo = 1 AND nivel_acesso = 'admin'");
-    $totalEmpresas = $stmt->fetch()['total'];
-    
-    $stmt = $db->query("SELECT COUNT(*) as total FROM usuarios WHERE ativo = 1");
-    $totalUsuarios = $stmt->fetch()['total'];
-    
-    $stmt = $db->query("SELECT COUNT(*) as total FROM log_atividades WHERE DATE(data_hora) = CURDATE()");
-    $atividadesHoje = $stmt->fetch()['total'];
-    
-    $stmt = $db->query("SELECT COUNT(*) as total FROM configuracoes");
-    $totalConfigs = $stmt->fetch()['total'];
+    if (isSuperAdmin()) {
+        $stmt = $db->query("SELECT COUNT(*) as total FROM usuarios WHERE ativo = 1 AND nivel_acesso = 'admin'");
+        $totalEmpresas = $stmt->fetch()['total'];
+        
+        $stmt = $db->query("SELECT COUNT(*) as total FROM usuarios WHERE ativo = 1");
+        $totalUsuarios = $stmt->fetch()['total'];
+        
+        $stmt = $db->query("SELECT COUNT(*) as total FROM log_atividades WHERE DATE(data_hora) = CURDATE()");
+        $atividadesHoje = $stmt->fetch()['total'];
+        
+        $stmt = $db->query("SELECT COUNT(*) as total FROM configuracoes");
+        $totalConfigs = $stmt->fetch()['total'];
+    } else {
+        // Para admins normais, mostrar apenas estatísticas da própria empresa
+        $totalEmpresas = 1;
+        $totalUsuarios = 1;
+        
+        $stmt = $db->prepare("SELECT COUNT(*) as total FROM log_atividades WHERE usuario_id = ? AND DATE(data_hora) = CURDATE()");
+        $stmt->execute([$empresaId]);
+        $atividadesHoje = $stmt->fetch()['total'];
+        
+        $stmt = $db->query("SELECT COUNT(*) as total FROM configuracoes");
+        $totalConfigs = $stmt->fetch()['total'];
+    }
     
 } catch (PDOException $e) {
     $totalEmpresas = $totalUsuarios = $atividadesHoje = $totalConfigs = 0;
@@ -278,27 +305,51 @@ if (isset($_SESSION['error'])) {
 
 <!-- Cards -->
 <div class="stats-grid grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 md:mb-6">
-    <div class="stat-card bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition">
-        <div class="h-full flex flex-col items-center justify-center text-center">
-            <div class="icon-box bg-white/20 p-3 rounded-full mb-3">
-                <i class="fas fa-store text-3xl md:text-4xl"></i>
+    <?php if (isSuperAdmin()): ?>
+        <div class="stat-card bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition">
+            <div class="h-full flex flex-col items-center justify-center text-center">
+                <div class="icon-box bg-white/20 p-3 rounded-full mb-3">
+                    <i class="fas fa-store text-3xl md:text-4xl"></i>
+                </div>
+                <p class="stat-title text-yellow-100 text-sm md:text-base font-bold mb-3">Total de Empresas</p>
+                <p class="stat-value text-2xl md:text-4xl font-bold mb-2"><?php echo $totalEmpresas; ?></p>
+                <p class="stat-subtitle text-yellow-100 text-xs md:text-base font-semibold">Cadastradas</p>
             </div>
-            <p class="stat-title text-yellow-100 text-sm md:text-base font-bold mb-3">Total de Empresas</p>
-            <p class="stat-value text-2xl md:text-4xl font-bold mb-2"><?php echo $totalEmpresas; ?></p>
-            <p class="stat-subtitle text-yellow-100 text-xs md:text-base font-semibold">Cadastradas</p>
         </div>
-    </div>
-    
-    <div class="stat-card bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition">
-        <div class="h-full flex flex-col items-center justify-center text-center">
-            <div class="icon-box bg-white/20 p-3 rounded-full mb-3">
-                <i class="fas fa-users text-3xl md:text-4xl"></i>
+        
+        <div class="stat-card bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition">
+            <div class="h-full flex flex-col items-center justify-center text-center">
+                <div class="icon-box bg-white/20 p-3 rounded-full mb-3">
+                    <i class="fas fa-users text-3xl md:text-4xl"></i>
+                </div>
+                <p class="stat-title text-blue-100 text-sm md:text-base font-bold mb-3">Total de Usuários</p>
+                <p class="stat-value text-2xl md:text-4xl font-bold mb-2"><?php echo $totalUsuarios; ?></p>
+                <p class="stat-subtitle text-blue-100 text-xs md:text-base font-semibold">Ativos</p>
             </div>
-            <p class="stat-title text-blue-100 text-sm md:text-base font-bold mb-3">Total de Usuários</p>
-            <p class="stat-value text-2xl md:text-4xl font-bold mb-2"><?php echo $totalUsuarios; ?></p>
-            <p class="stat-subtitle text-blue-100 text-xs md:text-base font-semibold">Ativos</p>
         </div>
-    </div>
+    <?php else: ?>
+        <div class="stat-card bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition">
+            <div class="h-full flex flex-col items-center justify-center text-center">
+                <div class="icon-box bg-white/20 p-3 rounded-full mb-3">
+                    <i class="fas fa-building text-3xl md:text-4xl"></i>
+                </div>
+                <p class="stat-title text-yellow-100 text-sm md:text-base font-bold mb-3">Minha Empresa</p>
+                <p class="stat-value text-2xl md:text-4xl font-bold mb-2">1</p>
+                <p class="stat-subtitle text-yellow-100 text-xs md:text-base font-semibold">Ativa</p>
+            </div>
+        </div>
+        
+        <div class="stat-card bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition">
+            <div class="h-full flex flex-col items-center justify-center text-center">
+                <div class="icon-box bg-white/20 p-3 rounded-full mb-3">
+                    <i class="fas fa-user text-3xl md:text-4xl"></i>
+                </div>
+                <p class="stat-title text-blue-100 text-sm md:text-base font-bold mb-3">Usuários</p>
+                <p class="stat-value text-2xl md:text-4xl font-bold mb-2"><?php echo $totalUsuarios; ?></p>
+                <p class="stat-subtitle text-blue-100 text-xs md:text-base font-semibold">Ativos</p>
+            </div>
+        </div>
+    <?php endif; ?>
     
     <div class="stat-card bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition">
         <div class="h-full flex flex-col items-center justify-center text-center">
@@ -327,20 +378,27 @@ if (isset($_SESSION['error'])) {
 <div class="mb-4 md:mb-6">
     <div class="tabs-container border-b border-gray-200 overflow-x-auto">
         <nav class="tabs-nav flex space-x-4 md:space-x-8">
-            <button onclick="mostrarTab('empresas')" id="tab-empresas" class="tab-button border-b-2 border-purple-600 py-3 md:py-4 px-1 text-purple-600 font-semibold text-sm md:text-base">
-                <i class="fas fa-store"></i> Empresas
-            </button>
-            <button onclick="mostrarTab('geral')" id="tab-geral" class="tab-button border-b-2 border-transparent py-3 md:py-4 px-1 text-gray-500 hover:text-gray-700 font-semibold text-sm md:text-base">
+            <?php if (isSuperAdmin()): ?>
+                <button onclick="mostrarTab('empresas')" id="tab-empresas" class="tab-button border-b-2 border-purple-600 py-3 md:py-4 px-1 text-purple-600 font-semibold text-sm md:text-base">
+                    <i class="fas fa-store"></i> Empresas
+                </button>
+            <?php endif; ?>
+            
+            <button onclick="mostrarTab('geral')" id="tab-geral" class="tab-button border-b-2 <?php echo isSuperAdmin() ? 'border-transparent' : 'border-purple-600'; ?> py-3 md:py-4 px-1 <?php echo isSuperAdmin() ? 'text-gray-500 hover:text-gray-700' : 'text-purple-600'; ?> font-semibold text-sm md:text-base">
                 <i class="fas fa-building"></i> Geral
             </button>
-            <button onclick="mostrarTab('sistema')" id="tab-sistema" class="tab-button border-b-2 border-transparent py-3 md:py-4 px-1 text-gray-500 hover:text-gray-700 font-semibold text-sm md:text-base">
-                <i class="fas fa-cogs"></i> Sistema
-            </button>
+            
+            <?php if (isSuperAdmin()): ?>
+                <button onclick="mostrarTab('sistema')" id="tab-sistema" class="tab-button border-b-2 border-transparent py-3 md:py-4 px-1 text-gray-500 hover:text-gray-700 font-semibold text-sm md:text-base">
+                    <i class="fas fa-cogs"></i> Sistema
+                </button>
+            <?php endif; ?>
         </nav>
     </div>
 </div>
 
-<!-- Tab: Empresas -->
+<!-- Tab: Empresas (SOMENTE SUPER ADMIN) -->
+<?php if (isSuperAdmin()): ?>
 <div id="content-empresas" class="tab-content">
     <div class="white-card mb-4 md:mb-6 p-3 md:p-4">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4 mb-4 md:mb-6">
@@ -416,12 +474,13 @@ if (isset($_SESSION['error'])) {
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- Tab: Geral -->
-<div id="content-geral" class="tab-content hidden">
+<div id="content-geral" class="tab-content <?php echo isSuperAdmin() ? 'hidden' : ''; ?>">
     <div class="white-card p-3 md:p-4">
         <h3 class="text-lg md:text-xl font-bold text-gray-900 mb-4 md:mb-6">
-            <i class="fas fa-building text-purple-600"></i> Configurações Gerais do Sistema
+            <i class="fas fa-building text-purple-600"></i> Configurações Gerais <?php echo isSuperAdmin() ? 'do Sistema' : 'da Empresa'; ?>
         </h3>
         
         <form method="POST" action="">
@@ -429,7 +488,7 @@ if (isset($_SESSION['error'])) {
             
             <div class="form-grid grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Nome da Empresa Master *</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Nome da Empresa <?php echo isSuperAdmin() ? 'Master' : ''; ?> *</label>
                     <input type="text" name="empresa_nome" required
                            value="<?php echo htmlspecialchars($configs['empresa_nome'] ?? 'PaperArt - Sistema Multi-Empresa'); ?>"
                            class="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm md:text-base">
@@ -491,7 +550,8 @@ if (isset($_SESSION['error'])) {
     </div>
 </div>
 
-<!-- Tab: Sistema -->
+<!-- Tab: Sistema (SOMENTE SUPER ADMIN) -->
+<?php if (isSuperAdmin()): ?>
 <div id="content-sistema" class="tab-content hidden">
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         <div class="white-card p-3 md:p-4">
@@ -552,8 +612,10 @@ if (isset($_SESSION['error'])) {
         </div>
     </div>
 </div>
+<?php endif; ?>
 
-<!-- Modal: Nova Empresa -->
+<!-- Modal: Nova Empresa (SOMENTE SUPER ADMIN) -->
+<?php if (isSuperAdmin()): ?>
 <div id="modalEmpresa" style="display: none;" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-screen overflow-y-auto">
         <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 md:p-6 rounded-t-2xl flex items-center justify-between sticky top-0 z-10">
@@ -624,6 +686,7 @@ if (isset($_SESSION['error'])) {
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <script>
 function mostrarTab(tab) {
@@ -638,6 +701,7 @@ function mostrarTab(tab) {
     btn.classList.add('border-purple-600', 'text-purple-600');
 }
 
+<?php if (isSuperAdmin()): ?>
 function abrirModalEmpresa() {
     document.getElementById('modalEmpresa').style.display = 'flex';
 }
@@ -659,5 +723,16 @@ document.getElementById('modalEmpresa')?.addEventListener('click', function(e) {
         fecharModalEmpresa();
     }
 });
+<?php endif; ?>
+
+// Inicializar primeira tab
+document.addEventListener('DOMContentLoaded', function() {
+    <?php if (isSuperAdmin()): ?>
+        mostrarTab('empresas');
+    <?php else: ?>
+        mostrarTab('geral');
+    <?php endif; ?>
+});
 </script>
 
+<?php require_once 'footer.php'; ?>
