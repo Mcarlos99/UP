@@ -4,7 +4,7 @@ ini_set('display_errors', 0);
 
 session_start();
 require_once 'config.php';
-require_once 'config_multitenant.php';
+require_once 'config_multitenant.php'; // MULTI-TENANT
 
 if (!isLoggedIn()) {
     header('Location: index.php');
@@ -14,6 +14,9 @@ if (!isLoggedIn()) {
 define('INCLUDED', true);
 $pageTitle = 'Categorias';
 $pageSubtitle = 'Gerencie as categorias de produtos';
+
+// MULTI-TENANT: Obter empresa do usuário logado
+$empresaId = getEmpresaId();
 
 $db = getDB();
 
@@ -33,19 +36,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Nome da categoria é obrigatório');
             }
             
-            // Verificar se já existe
-            $stmt = $db->prepare("SELECT id FROM categorias WHERE nome = ? AND ativo = 1");
-            $stmt->execute([$nome]);
+            // MULTI-TENANT: Verificar se já existe NA EMPRESA
+            $stmt = $db->prepare("SELECT id FROM categorias WHERE nome = ? AND ativo = 1 AND empresa_id = ?");
+            $stmt->execute([$nome, $empresaId]);
             if ($stmt->fetch()) {
                 throw new Exception('Já existe uma categoria com este nome');
             }
             
+            // MULTI-TENANT: Inserir com empresa_id
             $stmt = $db->prepare("
-                INSERT INTO categorias (nome, descricao, icone, cor, ordem, ativo)
-                VALUES (?, ?, ?, ?, ?, 1)
+                INSERT INTO categorias (empresa_id, nome, descricao, icone, cor, ordem, ativo)
+                VALUES (?, ?, ?, ?, ?, ?, 1)
             ");
             
-            $stmt->execute([$nome, $descricao, $icone, $cor, $ordem]);
+            $stmt->execute([$empresaId, $nome, $descricao, $icone, $cor, $ordem]);
             
             logActivity('Categoria criada', 'categorias', $db->lastInsertId());
             $_SESSION['success'] = 'Categoria criada com sucesso!';
@@ -60,6 +64,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Editar categoria
     if (isset($_POST['action']) && $_POST['action'] === 'edit' && isset($_POST['categoria_id'])) {
         try {
+            // MULTI-TENANT: Validar acesso
+            validarAcessoEmpresa('categorias', $_POST['categoria_id']);
+            
             $categoriaId = (int)$_POST['categoria_id'];
             $nome = sanitize($_POST['nome']);
             $descricao = sanitize($_POST['descricao'] ?? '');
@@ -71,22 +78,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Nome da categoria é obrigatório');
             }
             
-            // Verificar se já existe outro com o mesmo nome
-            $stmt = $db->prepare("SELECT id FROM categorias WHERE nome = ? AND id != ? AND ativo = 1");
-            $stmt->execute([$nome, $categoriaId]);
+            // MULTI-TENANT: Verificar se já existe outro com mesmo nome NA EMPRESA
+            $stmt = $db->prepare("SELECT id FROM categorias WHERE nome = ? AND id != ? AND ativo = 1 AND empresa_id = ?");
+            $stmt->execute([$nome, $categoriaId, $empresaId]);
             if ($stmt->fetch()) {
                 throw new Exception('Já existe outra categoria com este nome');
             }
             
+            // MULTI-TENANT: Atualizar com validação de empresa
             $stmt = $db->prepare("
                 UPDATE categorias SET 
                     nome = ?, descricao = ?, icone = ?, cor = ?, ordem = ?
-                WHERE id = ?
+                WHERE id = ? AND empresa_id = ?
             ");
             
-            $stmt->execute([$nome, $descricao, $icone, $cor, $ordem, $categoriaId]);
+            $stmt->execute([$nome, $descricao, $icone, $cor, $ordem, $categoriaId, $empresaId]);
             
-            logActivity('Categoria atualizada', 'categorias', $categoriaId);
+            logActivity('Categoria editada', 'categorias', $categoriaId);
             $_SESSION['success'] = 'Categoria atualizada com sucesso!';
             header('Location: categorias.php');
             exit;
@@ -99,21 +107,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Excluir categoria
     if (isset($_POST['action']) && $_POST['action'] === 'delete' && isset($_POST['categoria_id'])) {
         try {
+            // MULTI-TENANT: Validar acesso
+            validarAcessoEmpresa('categorias', $_POST['categoria_id']);
+            
             $categoriaId = (int)$_POST['categoria_id'];
             
-            // Verificar se há produtos vinculados
-            $stmt = $db->prepare("SELECT COUNT(*) as total FROM produtos WHERE categoria_id = ? AND ativo = 1");
-            $stmt->execute([$categoriaId]);
+            // MULTI-TENANT: Verificar se há produtos nesta categoria NA EMPRESA
+            $stmt = $db->prepare("SELECT COUNT(*) as total FROM produtos WHERE categoria_id = ? AND ativo = 1 AND empresa_id = ?");
+            $stmt->execute([$categoriaId, $empresaId]);
             $total = $stmt->fetch()['total'];
             
             if ($total > 0) {
-                throw new Exception("Não é possível excluir esta categoria pois existem $total produto(s) vinculado(s). Mova os produtos para outra categoria primeiro.");
+                throw new Exception("Não é possível excluir esta categoria pois existem $total produto(s) vinculado(s) a ela");
             }
             
-            $stmt = $db->prepare("UPDATE categorias SET ativo = 0 WHERE id = ?");
-            $stmt->execute([$categoriaId]);
+            // MULTI-TENANT: Desativar com validação de empresa
+            $stmt = $db->prepare("UPDATE categorias SET ativo = 0 WHERE id = ? AND empresa_id = ?");
+            $stmt->execute([$categoriaId, $empresaId]);
             
-            logActivity('Categoria desativada', 'categorias', $categoriaId);
+            logActivity('Categoria excluída', 'categorias', $categoriaId);
             $_SESSION['success'] = 'Categoria removida com sucesso!';
             header('Location: categorias.php');
             exit;
@@ -122,54 +134,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['error'] = 'Erro ao excluir categoria: ' . $e->getMessage();
         }
     }
-    
-    // Reordenar categorias
-    if (isset($_POST['action']) && $_POST['action'] === 'reorder' && isset($_POST['ordem'])) {
-        try {
-            $ordem = json_decode($_POST['ordem'], true);
-            
-            $stmt = $db->prepare("UPDATE categorias SET ordem = ? WHERE id = ?");
-            
-            foreach ($ordem as $posicao => $categoriaId) {
-                $stmt->execute([$posicao, $categoriaId]);
-            }
-            
-            logActivity('Ordem das categorias atualizada', 'categorias');
-            echo json_encode(['success' => true]);
-            exit;
-            
-        } catch (Exception $e) {
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-            exit;
-        }
-    }
 }
 
-// Buscar categorias
-$categorias = [];
-$estatisticas = [];
+// MULTI-TENANT: Buscar categorias DA EMPRESA
+$busca = isset($_GET['busca']) ? $_GET['busca'] : '';
+$where = ["ativo = 1", "empresa_id = ?"];
+$params = [$empresaId];
+
+if (!empty($busca)) {
+    $where[] = "(nome LIKE ? OR descricao LIKE ?)";
+    $params[] = "%$busca%";
+    $params[] = "%$busca%";
+}
 
 try {
-    // Buscar todas as categorias ativas
-    $stmt = $db->query("
-        SELECT 
-            c.*,
-            COUNT(DISTINCT p.id) as total_produtos,
-            COALESCE(SUM(p.estoque_atual), 0) as estoque_total
-        FROM categorias c
-        LEFT JOIN produtos p ON c.id = p.categoria_id AND p.ativo = 1
-        WHERE c.ativo = 1
-        GROUP BY c.id
-        ORDER BY c.ordem ASC, c.nome ASC
-    ");
+    // Buscar categorias
+    $sql = "SELECT * FROM categorias WHERE " . implode(" AND ", $where) . " ORDER BY ordem, nome";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
     $categorias = $stmt->fetchAll();
     
-    // Estatísticas gerais
-    $stmt = $db->query("SELECT COUNT(*) as total FROM categorias WHERE ativo = 1");
+    // MULTI-TENANT: Estatísticas DA EMPRESA
+    $stmt = $db->prepare("SELECT COUNT(*) as total FROM categorias WHERE ativo = 1 AND empresa_id = ?");
+    $stmt->execute([$empresaId]);
     $totalCategorias = $stmt->fetch()['total'];
     
-    $stmt = $db->query("SELECT COUNT(*) as total FROM produtos WHERE ativo = 1");
-    $totalProdutos = $stmt->fetch()['total'];
+    $stmt = $db->prepare("
+        SELECT COUNT(*) as total 
+        FROM produtos p 
+        INNER JOIN categorias c ON p.categoria_id = c.id 
+        WHERE p.ativo = 1 AND c.ativo = 1 AND p.empresa_id = ?
+    ");
+    $stmt->execute([$empresaId]);
+    $totalProdutosCategorias = $stmt->fetch()['total'];
+    
+    $stmt = $db->prepare("
+        SELECT COUNT(*) as total 
+        FROM produtos 
+        WHERE ativo = 1 AND (categoria_id IS NULL OR categoria_id NOT IN (SELECT id FROM categorias WHERE ativo = 1 AND empresa_id = ?)) AND empresa_id = ?
+    ");
+    $stmt->execute([$empresaId, $empresaId]);
+    $produtosSemCategoria = $stmt->fetch()['total'];
+    
+    // Categoria com mais produtos
+    $stmt = $db->prepare("
+        SELECT c.nome, COUNT(p.id) as total 
+        FROM categorias c 
+        LEFT JOIN produtos p ON c.id = p.categoria_id AND p.ativo = 1 
+        WHERE c.ativo = 1 AND c.empresa_id = ?
+        GROUP BY c.id 
+        ORDER BY total DESC 
+        LIMIT 1
+    ");
+    $stmt->execute([$empresaId]);
+    $categoriaTop = $stmt->fetch();
+    $categoriaMaisProdutos = $categoriaTop ? $categoriaTop['nome'] : 'Nenhuma';
+    $qtdCategoriaTop = $categoriaTop ? $categoriaTop['total'] : 0;
     
 } catch (PDOException $e) {
     $erro = "Erro ao carregar categorias: " . $e->getMessage();
@@ -199,19 +219,14 @@ if (isset($_SESSION['error'])) {
         <h2 class="text-3xl font-bold text-gray-900">Categorias</h2>
         <p class="text-gray-600 mt-1">Gerencie as categorias de produtos</p>
     </div>
-    <div class="flex gap-3">
-        <a href="produtos.php" class="bg-gray-600 text-white px-4 py-3 rounded-lg hover:bg-gray-700 transition font-semibold">
-            <i class="fas fa-arrow-left"></i> Voltar para Produtos
-        </a>
-        <button onclick="abrirModal()" class="btn btn-primary">
-            <i class="fas fa-plus"></i> Nova Categoria
-        </button>
-    </div>
+    <button onclick="abrirModalCategoria()" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Nova Categoria
+    </button>
 </div>
 
-<!-- Cards de Estatísticas -->
+<!-- Cards de Estatísticas - FORMATO 4x1 QUADRADO -->
 <div class="grid grid-cols-4 gap-4 mb-6" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
-    <!-- Total de Categorias -->
+    <!-- Card 1: Total de Categorias (Amarelo/Laranja) -->
     <div class="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition" style="aspect-ratio: 1/1;">
         <div class="h-full flex flex-col items-center justify-center text-center">
             <div class="bg-white/20 p-3 rounded-full mb-3">
@@ -219,66 +234,61 @@ if (isset($_SESSION['error'])) {
             </div>
             <p class="text-yellow-100 text-base font-bold mb-3">Total de Categorias</p>
             <p class="text-4xl font-bold mb-2"><?php echo $totalCategorias; ?></p>
-            <p class="text-yellow-100 text-base font-semibold">Ativas</p>
+            <p class="text-yellow-100 text-base font-semibold">Cadastradas</p>
         </div>
     </div>
     
-    <!-- Produtos Cadastrados -->
+    <!-- Card 2: Produtos Categorizados (Azul/Cyan) -->
     <div class="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition" style="aspect-ratio: 1/1;">
         <div class="h-full flex flex-col items-center justify-center text-center">
             <div class="bg-white/20 p-3 rounded-full mb-3">
-                <i class="fas fa-box text-4xl"></i>
+                <i class="fas fa-boxes text-4xl"></i>
             </div>
-            <p class="text-blue-100 text-base font-bold mb-3">Produtos Cadastrados</p>
-            <p class="text-4xl font-bold mb-2"><?php echo $totalProdutos; ?></p>
-            <p class="text-blue-100 text-base font-semibold">No Total</p>
+            <p class="text-blue-100 text-base font-bold mb-3">Produtos Categorizados</p>
+            <p class="text-4xl font-bold mb-2"><?php echo $totalProdutosCategorias; ?></p>
+            <p class="text-blue-100 text-base font-semibold">Com categoria</p>
         </div>
     </div>
     
-    <!-- Média por Categoria -->
+    <!-- Card 3: Sem Categoria (Verde/Esmeralda) -->
     <div class="bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition" style="aspect-ratio: 1/1;">
         <div class="h-full flex flex-col items-center justify-center text-center">
             <div class="bg-white/20 p-3 rounded-full mb-3">
-                <i class="fas fa-chart-line text-4xl"></i>
+                <i class="fas fa-exclamation-triangle text-4xl"></i>
             </div>
-            <p class="text-green-100 text-base font-bold mb-3">Média por Categoria</p>
-            <p class="text-4xl font-bold mb-2">
-                <?php echo $totalCategorias > 0 ? number_format($totalProdutos / $totalCategorias, 1) : 0; ?>
-            </p>
+            <p class="text-green-100 text-base font-bold mb-3">Sem Categoria</p>
+            <p class="text-4xl font-bold mb-2"><?php echo $produtosSemCategoria; ?></p>
             <p class="text-green-100 text-base font-semibold">Produtos</p>
         </div>
     </div>
     
-    <!-- Categoria Maior -->
+    <!-- Card 4: Categoria Mais Popular (Roxo/Rosa) -->
     <div class="bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl p-5 text-white shadow-lg hover:shadow-xl transition" style="aspect-ratio: 1/1;">
         <div class="h-full flex flex-col items-center justify-center text-center">
             <div class="bg-white/20 p-3 rounded-full mb-3">
-                <i class="fas fa-crown text-4xl"></i>
+                <i class="fas fa-star text-4xl"></i>
             </div>
-            <p class="text-purple-100 text-base font-bold mb-3">Maior Categoria</p>
-            <p class="text-4xl font-bold mb-2">
-                <?php 
-                if (!empty($categorias)) {
-                    $maiorCategoria = array_reduce($categorias, function($max, $cat) {
-                        return ($cat['total_produtos'] > $max['total_produtos']) ? $cat : $max;
-                    }, $categorias[0]);
-                    echo $maiorCategoria['total_produtos'];
-                } else {
-                    echo '0';
-                }
-                ?>
-            </p>
-            <p class="text-purple-100 text-base font-semibold">Produtos</p>
+            <p class="text-purple-100 text-base font-bold mb-3">Mais Popular</p>
+            <p class="text-2xl font-bold mb-2"><?php echo $categoriaMaisProdutos; ?></p>
+            <p class="text-purple-100 text-base font-semibold"><?php echo $qtdCategoriaTop; ?> produtos</p>
         </div>
     </div>
 </div>
 
-<!-- Info sobre reorganização -->
-<div class="bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-4 mb-6 rounded">
-    <p class="font-medium">
-        <i class="fas fa-info-circle"></i> Dica:
-        <span class="font-normal">Você pode arrastar e soltar as categorias para reorganizá-las.</span>
-    </p>
+<!-- Filtros -->
+<div class="white-card mb-6">
+    <form method="GET" action="" class="flex gap-4">
+        <input 
+            type="text" 
+            name="busca" 
+            placeholder="Buscar categorias..." 
+            value="<?php echo htmlspecialchars($busca); ?>"
+            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+        >
+        <button type="submit" class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition">
+            <i class="fas fa-search"></i> Buscar
+        </button>
+    </form>
 </div>
 
 <!-- Lista de Categorias -->
@@ -289,406 +299,182 @@ if (isset($_SESSION['error'])) {
         <p class="text-gray-500 text-sm mt-2">Crie sua primeira categoria clicando no botão "Nova Categoria"</p>
     </div>
 <?php else: ?>
-    <div class="white-card" id="categoriasContainer">
-        <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-12">
-                            <i class="fas fa-grip-vertical"></i>
-                        </th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Categoria</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Descrição</th>
-                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Produtos</th>
-                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Estoque</th>
-                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="sortableCategorias" class="divide-y divide-gray-200">
-                    <?php foreach ($categorias as $categoria): ?>
-                        <tr class="hover:bg-gray-50 transition cursor-move categoria-row" data-id="<?php echo $categoria['id']; ?>">
-                            <td class="px-4 py-4 text-gray-400">
-                                <i class="fas fa-grip-vertical"></i>
-                            </td>
-                            <td class="px-4 py-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-12 h-12 rounded-lg flex items-center justify-center text-2xl" 
-                                         style="background-color: <?php echo htmlspecialchars($categoria['cor']); ?>20;">
-                                        <?php echo $categoria['icone']; ?>
-                                    </div>
-                                    <div>
-                                        <p class="font-bold text-gray-900"><?php echo htmlspecialchars($categoria['nome']); ?></p>
-                                        <p class="text-xs text-gray-500">Ordem: <?php echo $categoria['ordem']; ?></p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-4">
-                                <p class="text-sm text-gray-600">
-                                    <?php echo !empty($categoria['descricao']) ? htmlspecialchars($categoria['descricao']) : '<em class="text-gray-400">Sem descrição</em>'; ?>
-                                </p>
-                            </td>
-                            <td class="px-4 py-4 text-center">
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
-                                    <i class="fas fa-box mr-1"></i>
-                                    <?php echo $categoria['total_produtos']; ?>
-                                </span>
-                            </td>
-                            <td class="px-4 py-4 text-center">
-                                <span class="text-gray-900 font-semibold"><?php echo $categoria['estoque_total']; ?> un.</span>
-                            </td>
-                            <td class="px-4 py-4">
-                                <div class="flex items-center justify-center gap-2">
-                                    <button 
-                                        onclick="editarCategoria(<?php echo htmlspecialchars(json_encode($categoria)); ?>)"
-                                        class="text-blue-600 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-lg transition"
-                                        title="Editar"
-                                    >
-                                        <i class="fas fa-edit text-lg"></i>
-                                    </button>
-                                    
-                                    <a 
-                                        href="produtos.php?categoria=<?php echo $categoria['id']; ?>"
-                                        class="text-green-600 hover:text-green-700 p-2 hover:bg-green-50 rounded-lg transition"
-                                        title="Ver Produtos"
-                                    >
-                                        <i class="fas fa-eye text-lg"></i>
-                                    </a>
-                                    
-                                    <form method="POST" action="" onsubmit="return confirmarExclusao('Tem certeza que deseja excluir esta categoria?')" class="inline">
-                                        <input type="hidden" name="action" value="delete">
-                                        <input type="hidden" name="categoria_id" value="<?php echo $categoria['id']; ?>">
-                                        <button 
-                                            type="submit" 
-                                            class="text-red-600 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition"
-                                            title="Excluir"
-                                        >
-                                            <i class="fas fa-trash text-lg"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <?php foreach ($categorias as $categoria): ?>
+            <?php
+            // MULTI-TENANT: Contar produtos DA CATEGORIA na empresa
+            $stmt = $db->prepare("SELECT COUNT(*) as total FROM produtos WHERE categoria_id = ? AND ativo = 1 AND empresa_id = ?");
+            $stmt->execute([$categoria['id'], $empresaId]);
+            $totalProdutos = $stmt->fetch()['total'];
+            ?>
+            
+            <div class="white-card hover:shadow-lg transition">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="text-4xl"><?php echo htmlspecialchars($categoria['icone']); ?></div>
+                        <div>
+                            <h3 class="font-bold text-gray-900"><?php echo htmlspecialchars($categoria['nome']); ?></h3>
+                            <p class="text-xs text-gray-600"><?php echo $totalProdutos; ?> produto(s)</p>
+                        </div>
+                    </div>
+                    <div class="w-4 h-4 rounded-full" style="background-color: <?php echo htmlspecialchars($categoria['cor']); ?>"></div>
+                </div>
+                
+                <?php if (!empty($categoria['descricao'])): ?>
+                    <p class="text-sm text-gray-600 mb-4"><?php echo htmlspecialchars($categoria['descricao']); ?></p>
+                <?php endif; ?>
+                
+                <div class="flex gap-2 pt-3 border-t">
+                    <button onclick="editarCategoria(<?php echo htmlspecialchars(json_encode($categoria)); ?>)" class="flex-1 bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 transition text-sm">
+                        <i class="fas fa-edit"></i> Editar
+                    </button>
+                    
+                    <form method="POST" action="" onsubmit="return confirmarExclusao('Tem certeza que deseja excluir esta categoria?')" class="flex-1">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="categoria_id" value="<?php echo $categoria['id']; ?>">
+                        <button type="submit" class="w-full bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600 transition text-sm">
+                            <i class="fas fa-trash"></i> Excluir
+                        </button>
+                    </form>
+                </div>
+            </div>
+        <?php endforeach; ?>
     </div>
 <?php endif; ?>
 
-<!-- Modal de Criar/Editar Categoria -->
-<div id="categoriaModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4" style="display: none;">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[75vh] overflow-hidden flex flex-col">
-        <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-            <h3 class="text-xl font-bold text-gray-900" id="modalTitle">Nova Categoria</h3>
-            <button type="button" onclick="fecharModal()" class="text-gray-400 hover:text-gray-600 transition">
-                <i class="fas fa-times text-xl"></i>
-            </button>
+<!-- Modal Nova/Editar Categoria -->
+<div id="modalCategoria" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-2xl font-bold text-gray-900" id="modalTitulo">Nova Categoria</h3>
+                <button onclick="fecharModalCategoria()" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
         </div>
         
-        <div class="overflow-y-auto flex-1">
-            <form method="POST" action="" id="categoriaForm" class="p-5">
-            <input type="hidden" name="action" id="formAction" value="create">
-            <input type="hidden" name="categoria_id" id="categoriaId" value="">
+        <form method="POST" action="" id="formCategoria" class="p-6">
+            <input type="hidden" name="action" id="modalAction" value="create">
+            <input type="hidden" name="categoria_id" id="modalCategoriaId">
             
             <div class="space-y-4">
-                <!-- Nome -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Nome da Categoria *</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Nome da Categoria *</label>
                     <input 
                         type="text" 
                         name="nome" 
-                        id="categoriaNome"
+                        id="modalNome"
                         required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        placeholder="Ex: Cadernos, Agendas, Canetas..."
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        placeholder="Ex: Cadernos"
                     >
                 </div>
                 
-                <!-- Descrição -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Descrição</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Descrição</label>
                     <textarea 
                         name="descricao" 
-                        id="categoriaDescricao"
-                        rows="2"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        placeholder="Descrição opcional da categoria..."
+                        id="modalDescricao"
+                        rows="3"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        placeholder="Descrição da categoria..."
                     ></textarea>
                 </div>
                 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <!-- Ícone -->
+                <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1.5">Ícone (Emoji)</label>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Ícone (Emoji)</label>
                         <input 
                             type="text" 
                             name="icone" 
-                            id="categoriaIcone"
-                            maxlength="4"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-center text-2xl"
+                            id="modalIcone"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-center text-2xl"
                             placeholder="📦"
+                            maxlength="4"
                         >
-                        <p class="text-xs text-gray-600 mt-1 text-center">Use um emoji</p>
                     </div>
                     
-                    <!-- Cor -->
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1.5">Cor</label>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Cor</label>
                         <input 
                             type="color" 
                             name="cor" 
-                            id="categoriaCor"
+                            id="modalCor"
                             class="w-full h-10 border border-gray-300 rounded-lg cursor-pointer"
-                        >
-                    </div>
-                    
-                    <!-- Ordem -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1.5">Ordem</label>
-                        <input 
-                            type="number" 
-                            name="ordem" 
-                            id="categoriaOrdem"
-                            min="0"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                            placeholder="0"
                         >
                     </div>
                 </div>
                 
-                <!-- Preview -->
-                <div class="bg-gray-50 rounded-lg p-3">
-                    <p class="text-xs font-semibold text-gray-700 mb-2">Preview:</p>
-                    <div class="flex items-center gap-2">
-                        <div id="previewIcone" class="w-12 h-12 rounded-lg flex items-center justify-center text-2xl" style="background-color: #8B5CF620;">
-                            📦
-                        </div>
-                        <div>
-                            <p id="previewNome" class="font-bold text-gray-900 text-sm">Nome da Categoria</p>
-                            <p id="previewDescricao" class="text-xs text-gray-600">Descrição da categoria</p>
-                        </div>
-                    </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Ordem de Exibição</label>
+                    <input 
+                        type="number" 
+                        name="ordem" 
+                        id="modalOrdem"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        placeholder="0"
+                        value="0"
+                    >
                 </div>
             </div>
             
-            <div class="flex gap-2 mt-4 pt-4 border-t">
-                <button 
-                    type="button"
-                    onclick="fecharModal()"
-                    class="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition"
-                >
+            <div class="flex gap-3 mt-6">
+                <button type="button" onclick="fecharModalCategoria()" class="flex-1 bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-400 transition">
                     Cancelar
                 </button>
-                <button 
-                    type="submit"
-                    class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2.5 rounded-lg font-semibold hover:shadow-lg transition"
-                >
-                    <i class="fas fa-save"></i> <span id="btnSubmitText">Criar Categoria</span>
+                <button type="submit" class="flex-1 btn btn-primary">
+                    <i class="fas fa-save"></i> Salvar
                 </button>
             </div>
         </form>
-        </div>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-
 <script>
-// Sortable para reordenar categorias
-const sortable = new Sortable(document.getElementById('sortableCategorias'), {
-    animation: 150,
-    handle: '.categoria-row',
-    ghostClass: 'bg-purple-50',
-    onEnd: function(evt) {
-        const ordem = [];
-        document.querySelectorAll('.categoria-row').forEach((row, index) => {
-            ordem.push(row.dataset.id);
-        });
-        
-        // Salvar nova ordem
-        fetch('categorias.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: 'action=reorder&ordem=' + encodeURIComponent(JSON.stringify(ordem))
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Ordem atualizada com sucesso!', 'success');
-            }
-        });
-    }
-});
-
-// Modal
-function abrirModal() {
-    const modal = document.getElementById('categoriaModal');
-    modal.style.display = 'flex';
-    document.getElementById('modalTitle').textContent = 'Nova Categoria';
-    document.getElementById('formAction').value = 'create';
-    document.getElementById('btnSubmitText').textContent = 'Criar Categoria';
-    document.getElementById('categoriaForm').reset();
-    document.getElementById('categoriaId').value = '';
-    document.getElementById('categoriaIcone').value = '📦';
-    document.getElementById('categoriaCor').value = '#8B5CF6';
-    atualizarPreview();
-    document.body.style.overflow = 'hidden'; // Prevenir scroll do body
+function abrirModalCategoria() {
+    document.getElementById('modalCategoria').classList.remove('hidden');
+    document.getElementById('modalCategoria').classList.add('flex');
+    document.getElementById('modalTitulo').textContent = 'Nova Categoria';
+    document.getElementById('modalAction').value = 'create';
+    document.getElementById('formCategoria').reset();
+    document.getElementById('modalCategoriaId').value = '';
+    document.getElementById('modalIcone').value = '📦';
+    document.getElementById('modalCor').value = '#8B5CF6';
+    document.getElementById('modalOrdem').value = '0';
 }
 
-function fecharModal() {
-    const modal = document.getElementById('categoriaModal');
-    modal.style.display = 'none';
-    document.body.style.overflow = ''; // Restaurar scroll do body
+function fecharModalCategoria() {
+    document.getElementById('modalCategoria').classList.add('hidden');
+    document.getElementById('modalCategoria').classList.remove('flex');
 }
 
 function editarCategoria(categoria) {
-    const modal = document.getElementById('categoriaModal');
-    modal.style.display = 'flex';
-    document.getElementById('modalTitle').textContent = 'Editar Categoria';
-    document.getElementById('formAction').value = 'edit';
-    document.getElementById('btnSubmitText').textContent = 'Salvar Alterações';
-    
-    document.getElementById('categoriaId').value = categoria.id;
-    document.getElementById('categoriaNome').value = categoria.nome;
-    document.getElementById('categoriaDescricao').value = categoria.descricao || '';
-    document.getElementById('categoriaIcone').value = categoria.icone;
-    document.getElementById('categoriaCor').value = categoria.cor;
-    document.getElementById('categoriaOrdem').value = categoria.ordem;
-    
-    document.body.style.overflow = 'hidden'; // Prevenir scroll do body
-    atualizarPreview();
+    document.getElementById('modalCategoria').classList.remove('hidden');
+    document.getElementById('modalCategoria').classList.add('flex');
+    document.getElementById('modalTitulo').textContent = 'Editar Categoria';
+    document.getElementById('modalAction').value = 'edit';
+    document.getElementById('modalCategoriaId').value = categoria.id;
+    document.getElementById('modalNome').value = categoria.nome;
+    document.getElementById('modalDescricao').value = categoria.descricao || '';
+    document.getElementById('modalIcone').value = categoria.icone || '📦';
+    document.getElementById('modalCor').value = categoria.cor || '#8B5CF6';
+    document.getElementById('modalOrdem').value = categoria.ordem || '0';
 }
 
-// Preview em tempo real
-function atualizarPreview() {
-    const nome = document.getElementById('categoriaNome').value || 'Nome da Categoria';
-    const descricao = document.getElementById('categoriaDescricao').value || 'Descrição da categoria';
-    const icone = document.getElementById('categoriaIcone').value || '📦';
-    const cor = document.getElementById('categoriaCor').value || '#8B5CF6';
-    
-    document.getElementById('previewNome').textContent = nome;
-    document.getElementById('previewDescricao').textContent = descricao;
-    document.getElementById('previewIcone').textContent = icone;
-    document.getElementById('previewIcone').style.backgroundColor = cor + '20';
-}
-
-// Event listeners para preview
-document.getElementById('categoriaNome')?.addEventListener('input', atualizarPreview);
-document.getElementById('categoriaDescricao')?.addEventListener('input', atualizarPreview);
-document.getElementById('categoriaIcone')?.addEventListener('input', atualizarPreview);
-document.getElementById('categoriaCor')?.addEventListener('input', atualizarPreview);
-
-// Fechar modal ao clicar fora
-document.getElementById('categoriaModal')?.addEventListener('click', function(e) {
-    if (e.target === this) {
-        fecharModal();
-    }
-});
-
-// Fechar modal com tecla ESC
+// Fechar modal com ESC
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        const modal = document.getElementById('categoriaModal');
-        if (modal && modal.style.display === 'flex') {
-            fecharModal();
-        }
+        fecharModalCategoria();
     }
 });
 
-// Toast notification
-function showToast(message, type = 'success') {
-    const colors = {
-        success: 'bg-green-500',
-        error: 'bg-red-500',
-        warning: 'bg-yellow-500',
-        info: 'bg-blue-500'
-    };
-    
-    const toast = document.createElement('div');
-    toast.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300`;
-    toast.textContent = message;
-    
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-// Sugestões de emojis comuns
-const emojisComuns = ['📦', '📓', '📅', '📋', '🎁', '🖊️', '📝', '✉️', '✨', '🎨', '📚', '📌', '🏷️', '💼', '📁'];
-
-// Mostrar sugestões de emoji ao clicar no campo
-document.getElementById('categoriaIcone')?.addEventListener('focus', function() {
-    // Você pode adicionar um seletor de emoji aqui se desejar
+// Fechar modal clicando fora
+document.getElementById('modalCategoria').addEventListener('click', function(e) {
+    if (e.target === this) {
+        fecharModalCategoria();
+    }
 });
 </script>
-
-<style>
-.categoria-row {
-    transition: background-color 0.2s;
-}
-
-.categoria-row:hover {
-    background-color: #f9fafb;
-}
-
-.sortable-ghost {
-    opacity: 0.4;
-    background-color: #f3f4f6;
-}
-
-/* Modal styles */
-#categoriaModal {
-    backdrop-filter: blur(4px);
-}
-
-#categoriaModal > div {
-    animation: modalSlideIn 0.3s ease-out;
-}
-
-@keyframes modalSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Garantir que o modal não seja afetado pelo Tailwind */
-#categoriaModal[style*="display: flex"] {
-    display: flex !important;
-}
-
-/* Scroll suave no conteúdo do modal */
-#categoriaModal .overflow-y-auto {
-    scrollbar-width: thin;
-    scrollbar-color: #a855f7 #f3f4f6;
-}
-
-#categoriaModal .overflow-y-auto::-webkit-scrollbar {
-    width: 8px;
-}
-
-#categoriaModal .overflow-y-auto::-webkit-scrollbar-track {
-    background: #f3f4f6;
-    border-radius: 10px;
-}
-
-#categoriaModal .overflow-y-auto::-webkit-scrollbar-thumb {
-    background: #a855f7;
-    border-radius: 10px;
-}
-
-#categoriaModal .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-    background: #9333ea;
-}
-</style>
 
 <?php require_once 'footer.php'; ?>
