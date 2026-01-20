@@ -167,10 +167,10 @@ if (isset($_SESSION['success'])) {
     </div>
 </div>
 
-<!-- QR Code e Instruções -->
+<!-- QR Code e Instruções 
 <div class="qr-code-section grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
     
-    <!-- QR Code -->
+
     <div class="white-card">
         <div class="p-6 text-center">
             <h3 class="text-xl font-bold text-gray-900 mb-4">
@@ -190,67 +190,7 @@ if (isset($_SESSION['success'])) {
             </button>
         </div>
     </div>
-    
-    <!-- Como funciona -->
-    <div class="white-card">
-        <div class="p-6">
-            <h3 class="text-xl font-bold text-gray-900 mb-4">
-                <i class="fas fa-info-circle text-blue-600"></i> Como Funciona
-            </h3>
-            
-            <div class="space-y-4">
-                <div class="flex gap-3">
-                    <div class="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold">
-                        1
-                    </div>
-                    <div>
-                        <p class="font-semibold text-gray-900">Compartilhe o link</p>
-                        <p class="text-sm text-gray-600">Envie o link ou QR Code para seus clientes pelo WhatsApp, redes sociais ou imprima em cartões</p>
-                    </div>
-                </div>
-                
-                <div class="flex gap-3">
-                    <div class="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold">
-                        2
-                    </div>
-                    <div>
-                        <p class="font-semibold text-gray-900">Cliente navega pelo catálogo</p>
-                        <p class="text-sm text-gray-600">Seus clientes veem todos os produtos disponíveis, preços e podem adicionar ao carrinho</p>
-                    </div>
-                </div>
-                
-                <div class="flex gap-3">
-                    <div class="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold">
-                        3
-                    </div>
-                    <div>
-                        <p class="font-semibold text-gray-900">Cliente finaliza o pedido</p>
-                        <p class="text-sm text-gray-600">O cliente informa seus dados e confirma o pedido</p>
-                    </div>
-                </div>
-                
-                <div class="flex gap-3">
-                    <div class="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold">
-                        4
-                    </div>
-                    <div>
-                        <p class="font-semibold text-gray-900">Você recebe a notificação</p>
-                        <p class="text-sm text-gray-600">O pedido aparece aqui no painel e você pode gerenciá-lo</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="mt-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
-                <p class="text-sm text-blue-800 font-semibold">
-                    <i class="fas fa-lightbulb"></i> Dica
-                </p>
-                <p class="text-sm text-blue-700 mt-1">
-                    Mantenha seus produtos sempre atualizados e com fotos de qualidade para aumentar suas vendas!
-                </p>
-            </div>
-        </div>
-    </div>
-</div>
+ </div> -->
 
 <!-- Pedidos Recentes do Catálogo -->
 <div class="white-card">

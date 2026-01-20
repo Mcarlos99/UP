@@ -175,14 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 </p>
             </div>
 
-            <!-- Dados de teste -->
-            <div class="mt-6 p-4 bg-gray-100 rounded-lg">
-                <p class="text-xs text-gray-600 text-center font-semibold mb-2">Dados para teste:</p>
-                <p class="text-xs text-gray-600 text-center">
-                    <strong>Email:</strong> admin@papelaria.com<br>
-                    <strong>Senha:</strong> admin123
-                </p>
-            </div>
+
         </div>
 
         <!-- Footer -->

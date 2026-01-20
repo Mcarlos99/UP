@@ -148,9 +148,11 @@ try {
     
     <!-- Sidebar -->
     <aside id="sidebar" class="sidebar fixed top-0 left-0 h-full w-64 text-white z-50">
-        <div class="p-6">
+        <div class="p-5">
+            <nav class="space-y-1">
+            
             <!-- Logo -->
-            <div class="flex items-center gap-3 mb-8 pb-6 border-b border-white/20">
+            <div class="flex items-center gap-3 mb-1 pb-6 border-b border-white/20">
                 <div class="bg-white/20 p-3 rounded-xl">
                     <i class="fas fa-book text-2xl"></i>
                 </div>
@@ -160,8 +162,8 @@ try {
                 </div>
             </div>
 
-            <!-- Menu -->
-            <nav class="space-y-2">
+            <!-- Menu -
+             -->
                 <a href="dashboard.php" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg <?php echo $currentPage === 'dashboard' ? 'active' : ''; ?>">
                     <i class="fas fa-home w-5"></i>
                     <span>Dashboard</span>
@@ -222,8 +224,7 @@ try {
                 </a>
                 <?php endif; ?>
             </nav>
-        </div>
-
+            </div>
         </div>
     </aside>
 
