@@ -5,6 +5,7 @@ ini_set('display_errors', 0);
 session_start();
 require_once 'config.php';
 require_once 'config_multitenant.php';
+require_once 'EmailNotificacao.php';
 
 // Middleware: Corrigir carrinho automaticamente
 require_once 'carrinho-middleware.php';
@@ -161,6 +162,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Limpar carrinho
             $_SESSION['carrinho'] = [];
             
+
+
+            // Enviar notificação específica para pedido do catálogo
+            try {
+                  $notificador = new EmailNotificacao($db, $empresaId);
+                  $enviado = $notificador->notificarNovoPedidoCatalogo($pedidoId);
+    
+                    if (!$enviado) {
+                         error_log("Falha ao enviar notificação de pedido catálogo #{$codigoPedido}");
+                          }
+                    } catch (Exception $e) {
+                          error_log("Erro ao notificar pedido catálogo #{$codigoPedido}: " . $e->getMessage());
+                    }
             // Redirecionar para página de sucesso
             header('Location: pedido-sucesso.php?empresa=' . $empresaId . '&pedido=' . $codigoPedido);
             exit;

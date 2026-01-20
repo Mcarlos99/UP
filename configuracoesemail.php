@@ -1,70 +1,30 @@
 <?php
-
-//error_reporting(E_ALL & ~E_WARNING & ~E_NOTICE);
-
-//ini_set('display_errors', 0);
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-
 session_start();
 
 require_once 'config.php';
-
 require_once 'config_multitenant.php';
-
 require_once 'EmailNotificacao.php';
 
-
-
-
 if (!isLoggedIn()) {
-
     header('Location: index.php');
-
     exit;
-
 }
-
-
-
-// Verificar se é admin
 
 if (!isAdmin()) {
-
     $_SESSION['error'] = 'Acesso negado! Apenas administradores podem acessar esta área.';
-
     header('Location: dashboard.php');
-
     exit;
-
 }
 
-define('INCLUDED', true);
-
-$pageTitle = 'Configurações';
-
-$pageSubtitle = 'Gerencie as configurações do sistema';
-
-
-
 $empresaId = getEmpresaId();
-
 $db = getDB();
-
-
-
-
 
 // ================== TESTE DE ENVIO DE EMAIL ==================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'testar_email') {
-
-    ini_set('display_errors', 1);
-    ini_set('display_startup_errors', 1);
-    error_reporting(E_ALL);
-
-    require_once 'EmailNotificacao.php';
 
     try {
         if (empty($_POST['email_teste'])) {
@@ -79,11 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'testa
         $email = new EmailNotificacao($db, $empresaId);
         $sucesso = $email->enviarEmailTeste($emailTeste);
 
-        if ($sucesso) {
-            $_SESSION['success'] = 'Email de teste enviado com sucesso para ' . $emailTeste;
-        } else {
-            throw new Exception('Falha ao enviar email. Verifique o servidor.');
-        }
+        $_SESSION['success'] = $sucesso
+            ? 'Email de teste enviado com sucesso para ' . $emailTeste
+            : 'Falha ao enviar email de teste';
 
     } catch (Exception $e) {
         $_SESSION['error'] = 'Erro no teste de email: ' . $e->getMessage();
@@ -93,529 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'testa
     exit;
 }
 // =============================================================
-
-
-
-
-
-
-
-
-
-
-// Processar ações
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-    
-
-    // Criar nova empresa (usuário admin) - SOMENTE SUPER ADMIN
-
-    if (isset($_POST['action']) && $_POST['action'] === 'criar_empresa') {
-
-        if (!isSuperAdmin()) {
-
-            $_SESSION['error'] = 'Acesso negado! Apenas o super administrador pode criar novas empresas.';
-
-            header('Location: configuracoes.php');
-
-            exit;
-
-        }
-
-        
-
-        try {
-
-            $nomeEmpresa = sanitize($_POST['nome_empresa']);
-
-            $emailEmpresa = sanitize($_POST['email_empresa']);
-
-            $telefoneEmpresa = sanitize($_POST['telefone_empresa']);
-
-            $senhaEmpresa = $_POST['senha_empresa'];
-
-            
-
-            // Validações
-
-            if (empty($nomeEmpresa) || empty($emailEmpresa) || empty($senhaEmpresa)) {
-
-                throw new Exception('Preencha todos os campos obrigatórios');
-
-            }
-
-            
-
-            if (!validarEmail($emailEmpresa)) {
-
-                throw new Exception('Email inválido');
-
-            }
-
-            
-
-            // Verificar se email já existe
-
-            $stmt = $db->prepare("SELECT id FROM usuarios WHERE email = ?");
-
-            $stmt->execute([$emailEmpresa]);
-
-            if ($stmt->fetch()) {
-
-                throw new Exception('Email já cadastrado no sistema');
-
-            }
-
-            
-
-            // Criar usuário admin (empresa)
-
-            $senhaHash = hashPassword($senhaEmpresa);
-
-            
-
-            $stmt = $db->prepare("INSERT INTO usuarios (nome, email, senha, telefone, nivel_acesso, ativo) 
-
-                                  VALUES (?, ?, ?, ?, 'admin', 1)");
-
-            $stmt->execute([$nomeEmpresa, $emailEmpresa, $senhaHash, $telefoneEmpresa]);
-
-            
-
-            $novaEmpresaId = $db->lastInsertId();
-
-            
-
-            logActivity('Nova empresa criada', 'usuarios', $novaEmpresaId);
-
-            $_SESSION['success'] = "Empresa '$nomeEmpresa' criada com sucesso! Login: $emailEmpresa";
-
-            header('Location: configuracoes.php');
-
-            exit;
-
-            
-
-        } catch (Exception $e) {
-
-            $_SESSION['error'] = 'Erro ao criar empresa: ' . $e->getMessage();
-
-        }
-
-    }
-
-    
-
-    // Salvar configurações gerais
-
-    if (isset($_POST['action']) && $_POST['action'] === 'salvar_config') {
-
-        try {
-
-            $configs = [
-
-                'empresa_nome' => sanitize($_POST['empresa_nome']),
-
-                'empresa_telefone' => sanitize($_POST['empresa_telefone']),
-
-                'empresa_email' => sanitize($_POST['empresa_email']),
-
-                'empresa_cnpj' => sanitize($_POST['empresa_cnpj'] ?? ''),
-
-                'empresa_endereco' => sanitize($_POST['empresa_endereco'] ?? ''),
-
-                'prazo_entrega_padrao' => (int)$_POST['prazo_entrega_padrao'],
-
-                'estoque_alerta' => (int)$_POST['estoque_alerta'],
-
-            ];
-
-            
-
-            $stmt = $db->prepare("INSERT INTO configuracoes (chave, valor, tipo) VALUES (?, ?, 'texto') 
-
-                                  ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
-
-            
-
-            foreach ($configs as $chave => $valor) {
-
-                $stmt->execute([$chave, $valor]);
-
-            }
-
-            
-
-            logActivity('Configurações atualizadas', 'configuracoes');
-
-            $_SESSION['success'] = 'Configurações salvas com sucesso!';
-
-            header('Location: configuracoes.php');
-
-            exit;
-
-            
-
-        } catch (Exception $e) {
-
-            $_SESSION['error'] = 'Erro ao salvar configurações: ' . $e->getMessage();
-
-        }
-
-    }
-
-    
-
-    // Desativar empresa - SOMENTE SUPER ADMIN
-
-    if (isset($_POST['action']) && $_POST['action'] === 'desativar_empresa') {
-
-        if (!isSuperAdmin()) {
-
-            $_SESSION['error'] = 'Acesso negado! Apenas o super administrador pode desativar empresas.';
-
-            header('Location: configuracoes.php');
-
-            exit;
-
-        }
-
-        
-
-        try {
-
-            $empresaIdDesativar = (int)$_POST['empresa_id'];
-
-            
-
-            if ($empresaIdDesativar == $_SESSION['user_id']) {
-
-                throw new Exception('Você não pode desativar sua própria empresa');
-
-            }
-
-            
-
-            $stmt = $db->prepare("UPDATE usuarios SET ativo = 0 WHERE id = ? AND nivel_acesso = 'admin'");
-
-            $stmt->execute([$empresaIdDesativar]);
-
-            
-
-            logActivity('Empresa desativada', 'usuarios', $empresaIdDesativar);
-
-            $_SESSION['success'] = 'Empresa desativada com sucesso!';
-
-            header('Location: configuracoes.php');
-
-            exit;
-
-            
-
-        } catch (Exception $e) {
-
-            $_SESSION['error'] = 'Erro ao desativar empresa: ' . $e->getMessage();
-
-        }
-
-    }
-    
-    // Salvar configurações de email
-    if (isset($_POST['action']) && $_POST['action'] === 'salvar_config_email') {
-        try {
-            $email_notificacao = sanitize($_POST['email_notificacao']);
-            $nome_empresa_email = sanitize($_POST['nome_empresa_email'] ?? '');
-            $telefone_email = sanitize($_POST['telefone_email'] ?? '');
-            $enviar_email = isset($_POST['enviar_email_pedido']) ? 1 : 0;
-            $mensagem_email = sanitize($_POST['mensagem_email_pedido']);
-            $cor_primaria = sanitize($_POST['cor_primaria'] ?? '#4F46E5');
-            $cor_secundaria = sanitize($_POST['cor_secundaria'] ?? '#10B981');
-            $smtp_host = sanitize($_POST['smtp_host'] ?? '');
-            $smtp_port = (int)$_POST['smtp_port'] ?? 587;
-            $smtp_username = sanitize($_POST['smtp_username'] ?? '');
-            $smtp_password = $_POST['smtp_password'] ?? ''; // Não sanitizar senha
-            $smtp_secure = sanitize($_POST['smtp_secure'] ?? 'tls');
-            
-            if (!validarEmail($email_notificacao)) {
-                throw new Exception('Email de notificação inválido');
-            }
-            
-            if (empty($smtp_host) || empty($smtp_username) || empty($smtp_password)) {
-                throw new Exception('Preencha todos os campos SMTP obrigatórios');
-            }
-            
-            // Verificar se já existe configuração
-            $stmt = $db->prepare("SELECT id FROM configuracoes_empresa WHERE empresa_id = ?");
-            $stmt->execute([$empresaId]);
-            $existe = $stmt->fetch();
-            
-            if ($existe) {
-                // Atualizar
-                $stmt = $db->prepare("
-                    UPDATE configuracoes_empresa 
-                    SET email_notificacao = ?,
-                        nome_empresa = ?,
-                        telefone = ?,
-                        enviar_email_pedido = ?,
-                        mensagem_email_pedido = ?,
-                        cor_primaria = ?,
-                        cor_secundaria = ?,
-                        smtp_host = ?,
-                        smtp_port = ?,
-                        smtp_username = ?,
-                        smtp_password = ?,
-                        smtp_secure = ?
-                    WHERE empresa_id = ?
-                ");
-                $stmt->execute([
-                    $email_notificacao,
-                    $nome_empresa_email,
-                    $telefone_email,
-                    $enviar_email,
-                    $mensagem_email,
-                    $cor_primaria,
-                    $cor_secundaria,
-                    $smtp_host,
-                    $smtp_port,
-                    $smtp_username,
-                    $smtp_password,
-                    $smtp_secure,
-                    $empresaId
-                ]);
-            } else {
-                // Inserir
-                $stmt = $db->prepare("
-                    INSERT INTO configuracoes_empresa 
-                    (empresa_id, email_notificacao, nome_empresa, telefone, enviar_email_pedido, mensagem_email_pedido, cor_primaria, cor_secundaria, smtp_host, smtp_port, smtp_username, smtp_password, smtp_secure) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ");
-                $stmt->execute([
-                    $empresaId,
-                    $email_notificacao,
-                    $nome_empresa_email,
-                    $telefone_email,
-                    $enviar_email,
-                    $mensagem_email,
-                    $cor_primaria,
-                    $cor_secundaria,
-                    $smtp_host,
-                    $smtp_port,
-                    $smtp_username,
-                    $smtp_password,
-                    $smtp_secure
-                ]);
-            }
-            
-            logActivity('Configurações de email atualizadas', 'configuracoes_empresa');
-            $_SESSION['success'] = 'Configurações de email salvas com sucesso!';
-            header('Location: configuracoes.php');
-            exit;
-            
-        } catch (Exception $e) {
-            $_SESSION['error'] = 'Erro ao salvar configurações de email: ' . $e->getMessage();
-        }
-    }
-    
-    // Testar envio de email
-    if (isset($_POST['action']) && $_POST['action'] === 'testar_email') {
-        try {
-            $email_teste = sanitize($_POST['email_teste']);
-            
-            if (!validarEmail($email_teste)) {
-                throw new Exception('Email de teste inválido');
-            }
-            
-            // Buscar configurações
-            $stmt = $db->prepare("SELECT * FROM configuracoes_empresa WHERE empresa_id = ?");
-            $stmt->execute([$empresaId]);
-            $config = $stmt->fetch();
-            
-            if (!$config) {
-                throw new Exception('Configure o email de notificação primeiro');
-            }
-            
-            // Montar email
-            $assunto = 'Teste de Notificação - ' . ($config['nome_empresa'] ?? 'Sistema');
-            $corpo = "Este é um email de teste do sistema PapelOn.\n\n";
-            $corpo .= "Se você recebeu este email, significa que as notificações estão funcionando corretamente!\n\n";
-            $corpo .= "Empresa: " . ($config['nome_empresa'] ?? 'N/A') . "\n";
-            $corpo .= "Email: " . $config['email_notificacao'] . "\n";
-            $corpo .= "Data/Hora: " . date('d/m/Y H:i:s') . "\n\n";
-            $corpo .= "---\n";
-            $corpo .= "Sistema PapelOn Multi-Tenant";
-            
-            $headers = "From: " . $config['email_notificacao'] . "\r\n";
-            $headers .= "Reply-To: " . $config['email_notificacao'] . "\r\n";
-            $headers .= "X-Mailer: PHP/" . phpversion();
-            
-            $sucesso = mail($email_teste, $assunto, $corpo, $headers);
-            
-            // Registrar log
-            $stmt = $db->prepare("
-                INSERT INTO logs_email (empresa_id, destinatario, assunto, sucesso, data_envio)
-                VALUES (?, ?, ?, ?, NOW())
-            ");
-            $stmt->execute([$empresaId, $email_teste, $assunto, $sucesso ? 1 : 0]);
-            
-            if ($sucesso) {
-                $_SESSION['success'] = 'Email de teste enviado com sucesso para ' . $email_teste;
-            } else {
-                throw new Exception('Falha ao enviar email. Verifique a configuração do servidor.');
-            }
-            
-            header('Location: configuracoes.php');
-            exit;
-            
-        } catch (Exception $e) {
-            $_SESSION['error'] = 'Erro ao testar email: ' . $e->getMessage();
-            header('Location: configuracoes.php');
-            exit;
-        }
-    }
-    
-
-}
-
-// Buscar configurações
-
-$configs = [];
-
-try {
-
-    $stmt = $db->query("SELECT chave, valor FROM configuracoes");
-
-    while ($row = $stmt->fetch()) {
-
-        $configs[$row['chave']] = $row['valor'];
-
-    }
-
-} catch (PDOException $e) {
-
-    $erro = "Erro ao carregar configurações";
-
-}
-
-
-
-// Buscar empresas (apenas para SUPER ADMIN)
-
-$empresas = [];
-
-if (isSuperAdmin()) {
-
-    try {
-
-        $stmt = $db->query("SELECT * FROM usuarios WHERE nivel_acesso = 'admin' ORDER BY ativo DESC, nome ASC");
-
-        $empresas = $stmt->fetchAll();
-
-    } catch (PDOException $e) {
-
-        $erro = "Erro ao carregar empresas";
-
-    }
-
-}
-
-
-
-// Estatísticas
-
-try {
-
-    if (isSuperAdmin()) {
-
-        $stmt = $db->query("SELECT COUNT(*) as total FROM usuarios WHERE ativo = 1 AND nivel_acesso = 'admin'");
-
-        $totalEmpresas = $stmt->fetch()['total'];
-
-        
-
-        $stmt = $db->query("SELECT COUNT(*) as total FROM usuarios WHERE ativo = 1");
-
-        $totalUsuarios = $stmt->fetch()['total'];
-
-        
-
-        $stmt = $db->query("SELECT COUNT(*) as total FROM log_atividades WHERE DATE(data_hora) = CURDATE()");
-
-        $atividadesHoje = $stmt->fetch()['total'];
-
-        
-
-        $stmt = $db->query("SELECT COUNT(*) as total FROM configuracoes");
-
-        $totalConfigs = $stmt->fetch()['total'];
-
-    } else {
-
-        // Para admins normais, mostrar apenas estatísticas da própria empresa
-
-        $totalEmpresas = 1;
-
-        $totalUsuarios = 1;
-
-        
-
-        $stmt = $db->prepare("SELECT COUNT(*) as total FROM log_atividades WHERE usuario_id = ? AND DATE(data_hora) = CURDATE()");
-
-        $stmt->execute([$empresaId]);
-
-        $atividadesHoje = $stmt->fetch()['total'];
-
-        
-
-        $stmt = $db->query("SELECT COUNT(*) as total FROM configuracoes");
-
-        $totalConfigs = $stmt->fetch()['total'];
-
-    }
-
-    
-
-} catch (PDOException $e) {
-
-    $totalEmpresas = $totalUsuarios = $atividadesHoje = $totalConfigs = 0;
-
-}
-
-
-
-require_once 'header.php';
-
-
-
-// Mensagens
-
-if (isset($_SESSION['success'])) {
-
-    echo '<div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-3 md:p-4 mb-4 md:mb-6 rounded alert-auto-close">';
-
-    echo '<p class="font-medium text-sm md:text-base"><i class="fas fa-check-circle"></i> ' . htmlspecialchars($_SESSION['success']) . '</p>';
-
-    echo '</div>';
-
-    unset($_SESSION['success']);
-
-}
-
-
-
-if (isset($_SESSION['error'])) {
-
-    echo '<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 md:p-4 mb-4 md:mb-6 rounded alert-auto-close">';
-
-    echo '<p class="font-medium text-sm md:text-base"><i class="fas fa-exclamation-circle"></i> ' . htmlspecialchars($_SESSION['error']) . '</p>';
-
-    echo '</div>';
-
-    unset($_SESSION['error']);
-
-}
-
 ?>
+
 
 
 
@@ -744,8 +181,137 @@ if (isset($_SESSION['error'])) {
     }
 
     
+    // Salvar configurações de email
+    if (isset($_POST['action']) && $_POST['action'] === 'salvar_config_email') {
+        try {
+            $email_notificacao = sanitize($_POST['email_notificacao']);
+            $nome_empresa_email = sanitize($_POST['nome_empresa_email'] ?? '');
+            $telefone_email = sanitize($_POST['telefone_email'] ?? '');
+            $enviar_email = isset($_POST['enviar_email_pedido']) ? 1 : 0;
+            $mensagem_email = sanitize($_POST['mensagem_email_pedido']);
+            $cor_primaria = sanitize($_POST['cor_primaria'] ?? '#4F46E5');
+            $cor_secundaria = sanitize($_POST['cor_secundaria'] ?? '#10B981');
+            
+            if (!validarEmail($email_notificacao)) {
+                throw new Exception('Email de notificação inválido');
+            }
+            
+            // Verificar se já existe configuração
+            $stmt = $db->prepare("SELECT id FROM configuracoes_empresa WHERE empresa_id = ?");
+            $stmt->execute([$empresaId]);
+            $existe = $stmt->fetch();
+            
+            if ($existe) {
+                // Atualizar
+                $stmt = $db->prepare("
+                    UPDATE configuracoes_empresa 
+                    SET email_notificacao = ?,
+                        nome_empresa = ?,
+                        telefone = ?,
+                        enviar_email_pedido = ?,
+                        mensagem_email_pedido = ?,
+                        cor_primaria = ?,
+                        cor_secundaria = ?
+                    WHERE empresa_id = ?
+                ");
+                $stmt->execute([
+                    $email_notificacao,
+                    $nome_empresa_email,
+                    $telefone_email,
+                    $enviar_email,
+                    $mensagem_email,
+                    $cor_primaria,
+                    $cor_secundaria,
+                    $empresaId
+                ]);
+            } else {
+                // Inserir
+                $stmt = $db->prepare("
+                    INSERT INTO configuracoes_empresa 
+                    (empresa_id, email_notificacao, nome_empresa, telefone, enviar_email_pedido, mensagem_email_pedido, cor_primaria, cor_secundaria) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([
+                    $empresaId,
+                    $email_notificacao,
+                    $nome_empresa_email,
+                    $telefone_email,
+                    $enviar_email,
+                    $mensagem_email,
+                    $cor_primaria,
+                    $cor_secundaria
+                ]);
+            }
+            
+            logActivity('Configurações de email atualizadas', 'configuracoes_empresa');
+            $_SESSION['success'] = 'Configurações de email salvas com sucesso!';
+            header('Location: configuracoes.php');
+            exit;
+            
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Erro ao salvar configurações de email: ' . $e->getMessage();
+        }
+    }
+    
+    // Testar envio de email
+    if (isset($_POST['action']) && $_POST['action'] === 'testar_email') {
+        try {
+            $email_teste = sanitize($_POST['email_teste']);
+            
+            if (!validarEmail($email_teste)) {
+                throw new Exception('Email de teste inválido');
+            }
+            
+            // Buscar configurações
+            $stmt = $db->prepare("SELECT * FROM configuracoes_empresa WHERE empresa_id = ?");
+            $stmt->execute([$empresaId]);
+            $config = $stmt->fetch();
+            
+            if (!$config) {
+                throw new Exception('Configure o email de notificação primeiro');
+            }
+            
+            // Montar email
+            $assunto = 'Teste de Notificação - ' . ($config['nome_empresa'] ?? 'Sistema');
+            $corpo = "Este é um email de teste do sistema PapelOn.\n\n";
+            $corpo .= "Se você recebeu este email, significa que as notificações estão funcionando corretamente!\n\n";
+            $corpo .= "Empresa: " . ($config['nome_empresa'] ?? 'N/A') . "\n";
+            $corpo .= "Email: " . $config['email_notificacao'] . "\n";
+            $corpo .= "Data/Hora: " . date('d/m/Y H:i:s') . "\n\n";
+            $corpo .= "---\n";
+            $corpo .= "Sistema PapelOn Multi-Tenant";
+            
+            $headers = "From: " . $config['email_notificacao'] . "\r\n";
+            $headers .= "Reply-To: " . $config['email_notificacao'] . "\r\n";
+            $headers .= "X-Mailer: PHP/" . phpversion();
+            
+            $sucesso = mail($email_teste, $assunto, $corpo, $headers);
+            
+            // Registrar log
+            $stmt = $db->prepare("
+                INSERT INTO logs_email (empresa_id, destinatario, assunto, sucesso, data_envio)
+                VALUES (?, ?, ?, ?, NOW())
+            ");
+            $stmt->execute([$empresaId, $email_teste, $assunto, $sucesso ? 1 : 0]);
+            
+            if ($sucesso) {
+                $_SESSION['success'] = 'Email de teste enviado com sucesso para ' . $email_teste;
+            } else {
+                throw new Exception('Falha ao enviar email. Verifique a configuração do servidor.');
+            }
+            
+            header('Location: configuracoes.php');
+            exit;
+            
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Erro ao testar email: ' . $e->getMessage();
+            header('Location: configuracoes.php');
+            exit;
+        }
+    }
+    
 
-.empresa-card .empresa-avatar {
+    .empresa-card .empresa-avatar {
 
         width: 48px !important;
 
@@ -979,8 +545,6 @@ if (isset($_SESSION['error'])) {
                 <i class="fas fa-building"></i> Geral
 
             </button>
-
-            
             
              <button onclick="mostrarTab('email')" id="tab-email" class="tab-button border-b-2 border-transparent py-3 md:py-4 px-1 text-gray-500 hover:text-gray-700 font-semibold text-sm md:text-base">
             
@@ -1313,294 +877,6 @@ if (isset($_SESSION['error'])) {
 </div>
 
 
-<!-- Tab: Notificações por Email -->
-<div id="content-email" class="tab-content hidden">
-    <div class="white-card p-3 md:p-6">
-        <div class="flex items-center justify-between mb-6">
-            <h3 class="text-lg md:text-2xl font-bold text-gray-900">
-                <i class="fas fa-envelope text-purple-600"></i> Configurações de Email
-            </h3>
-        </div>
-
-        <?php
-        // Buscar ou criar configuração de email
-        try {
-            $stmt = $db->prepare("SELECT * FROM configuracoes_empresa WHERE empresa_id = ?");
-            $stmt->execute([$empresaId]);
-            $configEmail = $stmt->fetch();
-            
-            if (!$configEmail) {
-                // Criar configuração padrão
-                $stmt = $db->prepare("
-                    INSERT INTO configuracoes_empresa 
-                    (empresa_id, email_notificacao, nome_empresa, enviar_email_pedido, mensagem_email_pedido) 
-                    VALUES (?, ?, ?, 1, ?)
-                ");
-                $stmt->execute([
-                    $empresaId,
-                    $_SESSION['user_email'] ?? 'contato@empresa.com',
-                    $_SESSION['user_nome'] ?? 'Empresa',
-                    'Você recebeu um novo pedido! Acesse o sistema para visualizar os detalhes.'
-                ]);
-                
-                $stmt = $db->prepare("SELECT * FROM configuracoes_empresa WHERE empresa_id = ?");
-                $stmt->execute([$empresaId]);
-                $configEmail = $stmt->fetch();
-            }
-        } catch (PDOException $e) {
-            $configEmail = null;
-            $erro = "Erro ao carregar configurações de email";
-        }
-        ?>
-
-        <form method="POST" action="" enctype="multipart/form-data">
-            <input type="hidden" name="action" value="salvar_config_email">
-            
-            <div class="space-y-6">
-                <!-- Email de Notificação -->
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        <i class="fas fa-at text-purple-600"></i> Email para Notificações *
-                    </label>
-                    <input type="email" name="email_notificacao" required
-                           value="<?php echo htmlspecialchars($configEmail['email_notificacao'] ?? ''); ?>"
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                           placeholder="seu-email@empresa.com">
-                    <p class="text-xs text-gray-500 mt-1">
-                        Este email receberá notificações quando novos pedidos forem criados
-                    </p>
-                </div>
-
-                <!-- Nome da Empresa -->
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        <i class="fas fa-building text-purple-600"></i> Nome da Empresa
-                    </label>
-                    <input type="text" name="nome_empresa_email"
-                           value="<?php echo htmlspecialchars($configEmail['nome_empresa'] ?? ''); ?>"
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                           placeholder="Nome que aparecerá nos emails">
-                </div>
-
-                <!-- Telefone -->
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        <i class="fas fa-phone text-purple-600"></i> Telefone de Contato
-                    </label>
-                    <input type="text" name="telefone_email"
-                           value="<?php echo htmlspecialchars($configEmail['telefone'] ?? ''); ?>"
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                           placeholder="(00) 00000-0000"
-                           data-mask="telefone">
-                </div>
-
-                <!-- Configurações SMTP -->
-                        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded mb-6">
-                            <p class="text-blue-800 font-medium">
-                                <i class="fas fa-info-circle"></i> Envio de emails gerenciado pelo sistema
-                            </p>
-                            <p class="text-blue-700 text-sm mt-1">
-                                    Todas as notificações são enviadas automaticamente usando nosso email dedicado: 
-                                                <strong>paperart@extremesti.com.br</strong>.<br>
-                                    Basta informar abaixo o email onde deseja receber as notificações.
-                            </p>
-                        </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            <i class="fas fa-server text-purple-600"></i> SMTP Host *
-                        </label>
-                        <input type="text" name="smtp_host" required
-                               value="<?php echo htmlspecialchars($configEmail['smtp_host'] ?? 'smtp.example.com'); ?>"
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                               placeholder="smtp.gmail.com">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            <i class="fas fa-door-open text-purple-600"></i> SMTP Port *
-                        </label>
-                        <input type="number" name="smtp_port" required min="1"
-                               value="<?php echo htmlspecialchars($configEmail['smtp_port'] ?? '587'); ?>"
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                               placeholder="587">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            <i class="fas fa-user text-purple-600"></i> SMTP Username *
-                        </label>
-                        <input type="text" name="smtp_username" required
-                               value="<?php echo htmlspecialchars($configEmail['smtp_username'] ?? ''); ?>"
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                               placeholder="seuemail@exemplo.com">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            <i class="fas fa-lock text-purple-600"></i> SMTP Password *
-                        </label>
-                        <input type="password" name="smtp_password" required
-                               value="<?php echo htmlspecialchars($configEmail['smtp_password'] ?? ''); ?>"
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                               placeholder="Sua senha">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        <i class="fas fa-shield-alt text-purple-600"></i> SMTP Secure
-                    </label>
-                    <select name="smtp_secure"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-                        <option value="tls" <?php echo ($configEmail['smtp_secure'] ?? 'tls') === 'tls' ? 'selected' : ''; ?>>TLS</option>
-                        <option value="ssl" <?php echo ($configEmail['smtp_secure'] ?? 'tls') === 'ssl' ? 'selected' : ''; ?>>SSL</option>
-                        <option value="" <?php echo empty($configEmail['smtp_secure']) ? 'selected' : ''; ?>>None</option>
-                    </select>
-                </div>
-
-                <!-- Checkbox: Enviar Email -->
-                <div class="bg-purple-50 border-l-4 border-purple-500 p-4 rounded">
-                    <label class="flex items-center cursor-pointer">
-                        <input type="checkbox" name="enviar_email_pedido" 
-                               <?php echo ($configEmail['enviar_email_pedido'] ?? 1) ? 'checked' : ''; ?>
-                               class="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded">
-                        <span class="ml-3 text-sm font-semibold text-gray-900">
-                            Enviar email automaticamente quando um novo pedido for criado
-                        </span>
-                    </label>
-                </div>
-
-                <!-- Mensagem Personalizada -->
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        <i class="fas fa-comment-dots text-purple-600"></i> Mensagem Personalizada do Email
-                    </label>
-                    <textarea name="mensagem_email_pedido" rows="5"
-                              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                              placeholder="Digite a mensagem que aparecerá no email de notificação"
-                    ><?php echo htmlspecialchars($configEmail['mensagem_email_pedido'] ?? 'Você recebeu um novo pedido! Acesse o sistema para visualizar os detalhes.'); ?></textarea>
-                    <p class="text-xs text-gray-500 mt-1">
-                        Esta mensagem aparecerá no início de cada email de notificação de pedido
-                    </p>
-                </div>
-
-                <!-- Cores de Personalização -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            <i class="fas fa-palette text-purple-600"></i> Cor Primária
-                        </label>
-                        <div class="flex items-center gap-3">
-                            <input type="color" name="cor_primaria"
-                                   value="<?php echo htmlspecialchars($configEmail['cor_primaria'] ?? '#4F46E5'); ?>"
-                                   class="h-12 w-24 border border-gray-300 rounded cursor-pointer">
-                            <span class="text-sm text-gray-600">
-                                <?php echo htmlspecialchars($configEmail['cor_primaria'] ?? '#4F46E5'); ?>
-                            </span>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            <i class="fas fa-palette text-purple-600"></i> Cor Secundária
-                        </label>
-                        <div class="flex items-center gap-3">
-                            <input type="color" name="cor_secundaria"
-                                   value="<?php echo htmlspecialchars($configEmail['cor_secundaria'] ?? '#10B981'); ?>"
-                                   class="h-12 w-24 border border-gray-300 rounded cursor-pointer">
-                            <span class="text-sm text-gray-600">
-                                <?php echo htmlspecialchars($configEmail['cor_secundaria'] ?? '#10B981'); ?>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Botão Salvar -->
-                <div class="flex gap-3 pt-4">
-                    <button type="submit" class="btn btn-primary flex-1">
-                        <i class="fas fa-save"></i> Salvar Configurações de Email
-                    </button>
-                </div>
-            </div>
-        </form>
-
-        <!-- Seção de Teste -->
-        <div class="mt-8 pt-8 border-t border-gray-200">
-            <h4 class="text-lg font-bold text-gray-900 mb-4">
-                <i class="fas fa-flask text-blue-600"></i> Testar Envio de Email
-            </h4>
-            
-            <form method="POST" action="" class="flex gap-3">
-                <input type="hidden" name="action" value="testar_email">
-                <div class="flex-1">
-                    <input type="email" name="email_teste" required
-                           placeholder="Digite um email para teste"
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <button type="submit" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold whitespace-nowrap">
-                    <i class="fas fa-paper-plane"></i> Enviar Teste
-                </button>
-            </form>
-            
-            <p class="text-xs text-gray-500 mt-2">
-                <i class="fas fa-info-circle"></i> Um email de teste será enviado para verificar se está tudo funcionando
-            </p>
-        </div>
-
-        <!-- Logs Recentes -->
-        <div class="mt-8 pt-8 border-t border-gray-200">
-            <h4 class="text-lg font-bold text-gray-900 mb-4">
-                <i class="fas fa-history text-gray-600"></i> Últimos Emails Enviados
-            </h4>
-            
-            <?php
-            try {
-                $stmt = $db->prepare("
-                    SELECT * FROM logs_email 
-                    WHERE empresa_id = ? 
-                    ORDER BY data_envio DESC 
-                    LIMIT 10
-                ");
-                $stmt->execute([$empresaId]);
-                $logsEmail = $stmt->fetchAll();
-            } catch (PDOException $e) {
-                $logsEmail = [];
-            }
-            ?>
-
-            <div class="space-y-2">
-                <?php if (empty($logsEmail)): ?>
-                    <p class="text-gray-500 text-center py-4 text-sm">Nenhum email enviado ainda</p>
-                <?php else: ?>
-                    <?php foreach ($logsEmail as $log): ?>
-                        <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                            <div class="<?php echo $log['sucesso'] ? 'bg-green-100' : 'bg-red-100'; ?> p-2 rounded-lg">
-                                <i class="fas <?php echo $log['sucesso'] ? 'fa-check text-green-600' : 'fa-times text-red-600'; ?>"></i>
-                            </div>
-                            <div class="flex-1">
-                                <p class="text-sm font-semibold text-gray-900">
-                                    <?php echo htmlspecialchars($log['assunto'] ?? 'Email'); ?>
-                                </p>
-                                <p class="text-xs text-gray-600">
-                                    Para: <?php echo htmlspecialchars($log['destinatario']); ?> • 
-                                    <?php echo formatarData($log['data_envio'], 'd/m/Y H:i'); ?>
-                                </p>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-</div>
-
-
-
-
 
 <!-- Tab: Sistema (SOMENTE SUPER ADMIN) -->
 
@@ -1727,6 +1003,7 @@ if (isset($_SESSION['error'])) {
 </div>
 
 <?php endif; ?>
+
 
 
 <!-- Modal: Nova Empresa (SOMENTE SUPER ADMIN) -->
@@ -1971,4 +1248,220 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-<?php require_once 'footer.php'; ?>
+<?php require_once 'footer.php'; ?>
+<!-- Tab: Notificações por Email -->
+<div id="content-email" class="tab-content hidden">
+    <div class="white-card p-3 md:p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg md:text-2xl font-bold text-gray-900">
+                <i class="fas fa-envelope text-purple-600"></i> Configurações de Email
+            </h3>
+        </div>
+
+        <?php
+        // Buscar ou criar configuração de email
+        try {
+            $stmt = $db->prepare("SELECT * FROM configuracoes_empresa WHERE empresa_id = ?");
+            $stmt->execute([$empresaId]);
+            $configEmail = $stmt->fetch();
+            
+            if (!$configEmail) {
+                // Criar configuração padrão
+                $stmt = $db->prepare("
+                    INSERT INTO configuracoes_empresa 
+                    (empresa_id, email_notificacao, nome_empresa, enviar_email_pedido, mensagem_email_pedido) 
+                    VALUES (?, ?, ?, 1, ?)
+                ");
+                $stmt->execute([
+                    $empresaId,
+                    $_SESSION['user_email'] ?? 'contato@empresa.com',
+                    $_SESSION['user_nome'] ?? 'Empresa',
+                    'Você recebeu um novo pedido! Acesse o sistema para visualizar os detalhes.'
+                ]);
+                
+                $stmt = $db->prepare("SELECT * FROM configuracoes_empresa WHERE empresa_id = ?");
+                $stmt->execute([$empresaId]);
+                $configEmail = $stmt->fetch();
+            }
+        } catch (PDOException $e) {
+            $configEmail = null;
+            $erro = "Erro ao carregar configurações de email";
+        }
+        ?>
+
+        <form method="POST" action="" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="salvar_config_email">
+            
+            <div class="space-y-6">
+                <!-- Email de Notificação -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-at text-purple-600"></i> Email para Notificações *
+                    </label>
+                    <input type="email" name="email_notificacao" required
+                           value="<?php echo htmlspecialchars($configEmail['email_notificacao'] ?? ''); ?>"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                           placeholder="seu-email@empresa.com">
+                    <p class="text-xs text-gray-500 mt-1">
+                        Este email receberá notificações quando novos pedidos forem criados
+                    </p>
+                </div>
+
+                <!-- Nome da Empresa -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-building text-purple-600"></i> Nome da Empresa
+                    </label>
+                    <input type="text" name="nome_empresa_email"
+                           value="<?php echo htmlspecialchars($configEmail['nome_empresa'] ?? ''); ?>"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                           placeholder="Nome que aparecerá nos emails">
+                </div>
+
+                <!-- Telefone -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-phone text-purple-600"></i> Telefone de Contato
+                    </label>
+                    <input type="text" name="telefone_email"
+                           value="<?php echo htmlspecialchars($configEmail['telefone'] ?? ''); ?>"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                           placeholder="(00) 00000-0000"
+                           data-mask="telefone">
+                </div>
+
+                <!-- Checkbox: Enviar Email -->
+                <div class="bg-purple-50 border-l-4 border-purple-500 p-4 rounded">
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" name="enviar_email_pedido" 
+                               <?php echo ($configEmail['enviar_email_pedido'] ?? 1) ? 'checked' : ''; ?>
+                               class="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded">
+                        <span class="ml-3 text-sm font-semibold text-gray-900">
+                            Enviar email automaticamente quando um novo pedido for criado
+                        </span>
+                    </label>
+                </div>
+
+                <!-- Mensagem Personalizada -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-comment-dots text-purple-600"></i> Mensagem Personalizada do Email
+                    </label>
+                    <textarea name="mensagem_email_pedido" rows="5"
+                              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                              placeholder="Digite a mensagem que aparecerá no email de notificação"
+                    ><?php echo htmlspecialchars($configEmail['mensagem_email_pedido'] ?? 'Você recebeu um novo pedido! Acesse o sistema para visualizar os detalhes.'); ?></textarea>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Esta mensagem aparecerá no início de cada email de notificação de pedido
+                    </p>
+                </div>
+
+                <!-- Cores de Personalização -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-palette text-purple-600"></i> Cor Primária
+                        </label>
+                        <div class="flex items-center gap-3">
+                            <input type="color" name="cor_primaria"
+                                   value="<?php echo htmlspecialchars($configEmail['cor_primaria'] ?? '#4F46E5'); ?>"
+                                   class="h-12 w-24 border border-gray-300 rounded cursor-pointer">
+                            <span class="text-sm text-gray-600">
+                                <?php echo htmlspecialchars($configEmail['cor_primaria'] ?? '#4F46E5'); ?>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-palette text-purple-600"></i> Cor Secundária
+                        </label>
+                        <div class="flex items-center gap-3">
+                            <input type="color" name="cor_secundaria"
+                                   value="<?php echo htmlspecialchars($configEmail['cor_secundaria'] ?? '#10B981'); ?>"
+                                   class="h-12 w-24 border border-gray-300 rounded cursor-pointer">
+                            <span class="text-sm text-gray-600">
+                                <?php echo htmlspecialchars($configEmail['cor_secundaria'] ?? '#10B981'); ?>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botão Salvar -->
+                <div class="flex gap-3 pt-4">
+                    <button type="submit" class="btn btn-primary flex-1">
+                        <i class="fas fa-save"></i> Salvar Configurações de Email
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Seção de Teste -->
+        <div class="mt-8 pt-8 border-t border-gray-200">
+            <h4 class="text-lg font-bold text-gray-900 mb-4">
+                <i class="fas fa-flask text-blue-600"></i> Testar Envio de Email
+            </h4>
+            
+            <form method="POST" action="" class="flex gap-3">
+                <input type="hidden" name="action" value="testar_email">
+                <div class="flex-1">
+                    <input type="email" name="email_teste" required
+                           placeholder="Digite um email para teste"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button type="submit" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold whitespace-nowrap">
+                    <i class="fas fa-paper-plane"></i> Enviar Teste
+                </button>
+            </form>
+            
+            <p class="text-xs text-gray-500 mt-2">
+                <i class="fas fa-info-circle"></i> Um email de teste será enviado para verificar se está tudo funcionando
+            </p>
+        </div>
+
+        <!-- Logs Recentes -->
+        <div class="mt-8 pt-8 border-t border-gray-200">
+            <h4 class="text-lg font-bold text-gray-900 mb-4">
+                <i class="fas fa-history text-gray-600"></i> Últimos Emails Enviados
+            </h4>
+            
+            <?php
+            try {
+                $stmt = $db->prepare("
+                    SELECT * FROM logs_email 
+                    WHERE empresa_id = ? 
+                    ORDER BY data_envio DESC 
+                    LIMIT 10
+                ");
+                $stmt->execute([$empresaId]);
+                $logsEmail = $stmt->fetchAll();
+            } catch (PDOException $e) {
+                $logsEmail = [];
+            }
+            ?>
+
+            <div class="space-y-2">
+                <?php if (empty($logsEmail)): ?>
+                    <p class="text-gray-500 text-center py-4 text-sm">Nenhum email enviado ainda</p>
+                <?php else: ?>
+                    <?php foreach ($logsEmail as $log): ?>
+                        <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                            <div class="<?php echo $log['sucesso'] ? 'bg-green-100' : 'bg-red-100'; ?> p-2 rounded-lg">
+                                <i class="fas <?php echo $log['sucesso'] ? 'fa-check text-green-600' : 'fa-times text-red-600'; ?>"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-gray-900">
+                                    <?php echo htmlspecialchars($log['assunto'] ?? 'Email'); ?>
+                                </p>
+                                <p class="text-xs text-gray-600">
+                                    Para: <?php echo htmlspecialchars($log['destinatario']); ?> • 
+                                    <?php echo formatarData($log['data_envio'], 'd/m/Y H:i'); ?>
+                                </p>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</div>
