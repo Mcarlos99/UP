@@ -296,7 +296,7 @@ $subtituloCatalogo = !empty($loja['subtitulo_catalogo']) ? $loja['subtitulo_cata
                     <?php endif; ?>
                     
                     <?php if (!empty($loja['instagram_url'])): ?>
-                        <a href="<?php echo htmlspecialchars($loja['instagram_url']); ?>" 
+                        <a href="https://www.instagram.com/<?php echo htmlspecialchars($loja['instagram_url']); ?>" 
                            target="_blank"
                            class="bg-pink-500 text-white p-2 md:p-3 rounded-lg hover:bg-pink-600 transition">
                             <i class="fab fa-instagram"></i>
@@ -374,10 +374,10 @@ $subtituloCatalogo = !empty($loja['subtitulo_catalogo']) ? $loja['subtitulo_cata
         <?php if (!empty($categorias)): ?>
             <div class="mb-6 overflow-x-auto">
                 <div class="flex gap-2 pb-2">
-                 <!--   <a href="?empresa=<?php echo $empresaId; ?>" 
+                    <a href="?empresa=<?php echo $empresaId; ?>" 
                        class="px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition <?php echo !$categoriaFiltro ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'; ?>">
                         <i class="fas fa-th"></i> Todos
-                    </a> -->
+                    </a>
                     <?php foreach ($categorias as $cat): ?>
                         <a href="?empresa=<?php echo $empresaId; ?>&categoria=<?php echo $cat['id']; ?>" 
                            class="px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition <?php echo $categoriaFiltro == $cat['id'] ? 'text-white' : 'bg-white text-gray-700 hover:bg-gray-100'; ?>"
@@ -564,7 +564,7 @@ $subtituloCatalogo = !empty($loja['subtitulo_catalogo']) ? $loja['subtitulo_cata
                     <?php endif; ?>
                     
                     <?php if (!empty($loja['instagram_url'])): ?>
-                        <a href="<?php echo htmlspecialchars($loja['instagram_url']); ?>" 
+                        <a href="https://www.instagram.com/<?php echo htmlspecialchars($loja['instagram_url']); ?>" 
                            target="_blank"
                            class="text-pink-600 hover:text-pink-700 transition">
                             <i class="fab fa-instagram text-2xl"></i>

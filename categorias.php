@@ -275,10 +275,16 @@ if (isset($_SESSION['error'])) {
 </style>
 
 <!-- Cabeçalho -->
-<div class="mb-4 md:mb-6">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4 mb-4 md:mb-6">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4">
+        
+        <a href="produtos.php" class="hidden md:inline-flex items-center px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-semibold text-sm md:text-base">
+
+            <i class="fas fa-arrow-left mr-2"></i> Voltar
+        </a>
 
         <button onclick="abrirModal()" class="w-full md:w-auto btn btn-primary text-sm md:text-base">
+
             <i class="fas fa-plus"></i> Nova Categoria
         </button>
     </div>
@@ -449,7 +455,7 @@ if (isset($_SESSION['error'])) {
                     <!-- Grid expandido (oculto inicialmente) -->
                     <div id="iconGridExpandido" class="icon-grid grid grid-cols-8 gap-2 mt-2 hidden" style="display: none;">
                         <?php 
-                        $iconesExtras = ['💼', '🎁', '🔖', '📮', '✉️', '📧', '🎒', '👜', '🖼️', '🎯', '💡', '🔧', '🔨', '⚙️', '🎪', '🎭', '🎬', '🎤', '🎧', '🎼', '🎹', '🎸', '🎺', '🎷', '📱', '💻', '⌨️', '🖱️', '🖨️', '📷', '📹', '📞', '☎️', '📟', '📠', '📡', '🔋', '🔌', '💾', '💿', '📀', '🎮', '🕹️', '🎲', '🧩', '🎰', '🏆', '🥇', '🥈', '🥉', '⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱'];
+                        $iconesExtras = ['🥃','💼', '🎁', '🔖', '📮', '✉️', '📧', '🎒', '👜', '🖼️', '🎯', '💡', '🔧', '🔨', '⚙️', '🎪', '🎭', '🎬', '🎤', '🎧', '🎼', '🎹', '🎸', '🎺', '🎷', '📱', '💻', '⌨️', '🖱️', '🖨️', '📷', '📹', '📞', '☎️', '📟', '📠', '📡', '🔋', '🔌', '💾', '💿', '📀', '🎮', '🕹️', '🎲', '🧩', '🎰', '🏆', '🥇', '🥈', '🥉', '⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱'];
                         foreach ($iconesExtras as $icone): 
                         ?>
                             <div class="icon-option w-10 h-10 md:w-12 md:h-12 bg-gray-100 hover:bg-purple-100 rounded-lg flex items-center justify-center cursor-pointer transition text-xl md:text-2xl border-2 border-transparent"

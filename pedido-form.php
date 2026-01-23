@@ -312,14 +312,14 @@ if (isset($_SESSION['error'])) {
 <!-- Cabeçalho do Formulário -->
 <div class="mb-4 md:mb-6">
     <div class="form-header flex items-center justify-between">
-        <div>
+    <!--    <div>
             <h2 class="text-2xl md:text-3xl font-bold text-gray-900">
                 <?php echo $modo === 'criar' ? 'Novo Pedido' : 'Editar Pedido #' . $pedidoId; ?>
             </h2>
             <p class="text-gray-600 mt-1 text-sm md:text-base">
                 <?php echo $modo === 'criar' ? 'Preencha os dados para criar um novo pedido' : 'Atualize as informações do pedido'; ?>
             </p>
-        </div>
+        </div> -->
         <a href="pedidos.php" class="hidden md:inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-semibold text-sm md:text-base">
             <i class="fas fa-arrow-left mr-2"></i> Voltar
         </a>

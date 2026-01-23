@@ -200,14 +200,14 @@ if (isset($_SESSION['error'])) {
 <!-- Cabeçalho do Formulário -->
 <div class="mb-4 md:mb-6">
     <div class="form-header flex items-center justify-between">
-        <div>
+<!--        <div>
             <h2 class="text-2xl md:text-3xl font-bold text-gray-900">
                 <?php echo $modo === 'criar' ? 'Novo Produto' : 'Editar Produto'; ?>
             </h2>
             <p class="text-gray-600 mt-1 text-sm md:text-base">
                 <?php echo $modo === 'criar' ? 'Preencha os dados para cadastrar um novo produto' : 'Atualize as informações do produto'; ?>
             </p>
-        </div>
+        </div>  -->
         <a href="produtos.php" class="hidden md:inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-semibold text-sm md:text-base">
             <i class="fas fa-arrow-left mr-2"></i> Voltar
         </a>
@@ -278,7 +278,7 @@ if (isset($_SESSION['error'])) {
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Preço de Custo</label>
                     <div class="relative">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
+                        <span class="absolute left-3 top-2 -translate-y-1/2 text-gray-500">R$</span>
                         <input type="text" name="preco_custo"
                                value="<?php echo isset($produto['preco_custo']) ? number_format($produto['preco_custo'], 2, ',', '.') : ''; ?>"
                                class="w-full pl-12 pr-3 md:pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm md:text-base"
@@ -290,7 +290,7 @@ if (isset($_SESSION['error'])) {
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Preço de Venda *</label>
                     <div class="relative">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
+                        <span class="absolute left-3 top-2 -translate-y-1/2 text-gray-500">R$</span>
                         <input type="text" name="preco_venda" required
                                value="<?php echo isset($produto['preco_venda']) ? number_format($produto['preco_venda'], 2, ',', '.') : ''; ?>"
                                class="w-full pl-12 pr-3 md:pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm md:text-base"

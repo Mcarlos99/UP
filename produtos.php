@@ -422,7 +422,7 @@ if (isset($_SESSION['error'])) {
         <p class="text-gray-500 text-xs md:text-sm mt-2">Crie seu primeiro produto clicando no botão "Novo Produto"</p>
     </div>
 <?php else: ?>
-    <div class="produtos-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6">
+    <div class="produtos-grid grid grid-cols-4 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4 md:gap-6">
         <?php foreach ($produtos as $produto): ?>
             <div class="produto-card white-card overflow-hidden group relative">
                 
